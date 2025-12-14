@@ -1,0 +1,168 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../features/auth/auth_provider.dart';
+import '../features/screens/splash_screen.dart';
+import '../features/screens/onboarding_screen.dart';
+import '../features/screens/login_screen.dart';
+import '../features/screens/signup_screen.dart';
+import '../features/screens/home_screen.dart';
+import '../features/screens/donate_screen.dart';
+import '../features/screens/requests_screen.dart';
+import '../features/screens/ebook_listing_screen.dart' show EBookListingScreen;
+import '../features/screens/chat_screen.dart';
+import '../features/screens/profile_screen.dart';
+import '../features/screens/book_detail_screen.dart';
+import '../features/screens/settings_screen.dart';
+import '../features/screens/qr_screen.dart';
+import '../features/screens/rewards_screen.dart';
+import '../features/screens/eco_tracker_screen.dart';
+import '../features/screens/community_screen.dart';
+import '../features/screens/language_settings_screen.dart';
+import '../features/screens/voice_settings_screen.dart';
+import '../features/screens/location_settings_screen.dart';
+import '../features/screens/set_location_screen.dart';
+import '../features/screens/payment_screen.dart';
+import '../features/books/request_book_model.dart';
+import '../features/screens/widgets/bottom_nav_bar.dart';
+import '../features/screens/widgets/voice_assistant_button.dart';
+
+final routerProvider = Provider<GoRouter>((ref) {
+  final authState = ref.watch(authStateProvider);
+
+  return GoRouter(
+    initialLocation: '/',
+    redirect: (context, state) {
+      // Don't redirect from splash screen - let it handle navigation
+      if (state.matchedLocation == '/') {
+        return null;
+      }
+
+      final isLoggedIn = authState.hasValue && authState.value != null;
+      final isOnAuthPage = state.matchedLocation == '/login' ||
+          state.matchedLocation == '/signup' ||
+          state.matchedLocation == '/onboarding';
+
+      // If not logged in and not on auth pages, redirect to login
+      if (!isLoggedIn && !isOnAuthPage) {
+        return '/login';
+      }
+
+      // If logged in and on auth pages, redirect to home
+      if (isLoggedIn && isOnAuthPage) {
+        return '/home';
+      }
+
+      return null;
+    },
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: '/onboarding',
+        builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/signup',
+        builder: (context, state) => const SignupScreen(),
+      ),
+      // Shell route for bottom navigation
+      ShellRoute(
+        builder: (context, state, child) {
+          return Scaffold(
+            body: Stack(
+              children: [
+                child,
+                const VoiceAssistantButton(),
+              ],
+            ),
+            bottomNavigationBar: const BottomNavBar(),
+          );
+        },
+        routes: [
+          GoRoute(
+            path: '/home',
+            builder: (context, state) => const HomeScreen(),
+          ),
+          GoRoute(
+            path: '/donate',
+            builder: (context, state) => const DonateScreen(),
+          ),
+          GoRoute(
+            path: '/requests',
+            builder: (context, state) => const RequestsScreen(),
+          ),
+          GoRoute(
+            path: '/chat',
+            builder: (context, state) => const ChatScreen(),
+          ),
+          GoRoute(
+            path: '/profile',
+            builder: (context, state) => const ProfileScreen(),
+          ),
+        ],
+      ),
+      // Other routes (no bottom nav)
+      GoRoute(
+        path: '/ebook-list',
+        builder: (context, state) => const EBookListingScreen(),
+      ),
+      GoRoute(
+        path: '/book-detail/:id',
+        builder: (context, state) {
+          final bookId = state.pathParameters['id']!;
+          return BookDetailScreen(bookId: bookId);
+        },
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/qr',
+        builder: (context, state) => const QRScreen(),
+      ),
+      GoRoute(
+        path: '/rewards',
+        builder: (context, state) => const RewardsScreen(),
+      ),
+      GoRoute(
+        path: '/eco-tracker',
+        builder: (context, state) => const EcoTrackerScreen(),
+      ),
+      GoRoute(
+        path: '/community',
+        builder: (context, state) => const CommunityScreen(),
+      ),
+      GoRoute(
+        path: '/language-settings',
+        builder: (context, state) => const LanguageSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/voice-settings',
+        builder: (context, state) => const VoiceSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/location-settings',
+        builder: (context, state) => const LocationSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/set-location',
+        builder: (context, state) => const SetLocationScreen(),
+      ),
+      GoRoute(
+        path: '/payment',
+        builder: (context, state) {
+          final book = state.extra as RequestBook;
+          return PaymentScreen(book: book);
+        },
+      ),
+    ],
+  );
+});
