@@ -13,7 +13,7 @@ class EcoTrackerScreen extends StatelessWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go('/home'),
         ),
         title: const Text('Eco Tracker'),
       ),
@@ -140,4 +140,3 @@ class EcoTrackerScreen extends StatelessWidget {
     );
   }
 }
-

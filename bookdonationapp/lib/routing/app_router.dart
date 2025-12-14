@@ -25,7 +25,8 @@ import '../features/screens/set_location_screen.dart';
 import '../features/screens/payment_screen.dart';
 import '../features/books/request_book_model.dart';
 import '../features/screens/widgets/bottom_nav_bar.dart';
-import '../features/screens/widgets/voice_assistant_button.dart';
+import '../features/screens/widgets/floating_action_buttons_group.dart';
+import '../features/screens/widgets/page_with_floating_buttons.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -79,7 +80,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             body: Stack(
               children: [
                 child,
-                const VoiceAssistantButton(),
+                const FloatingActionButtonsGroup(),
               ],
             ),
             bottomNavigationBar: const BottomNavBar(),
@@ -108,59 +109,83 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      // Other routes (no bottom nav)
+      // Other routes (no bottom nav, but with floating buttons)
       GoRoute(
         path: '/ebook-list',
-        builder: (context, state) => const EBookListingScreen(),
+        builder: (context, state) => const PageWithFloatingButtons(
+          child: EBookListingScreen(),
+        ),
       ),
       GoRoute(
         path: '/book-detail/:id',
         builder: (context, state) {
           final bookId = state.pathParameters['id']!;
-          return BookDetailScreen(bookId: bookId);
+          return PageWithFloatingButtons(
+            child: BookDetailScreen(bookId: bookId),
+          );
         },
       ),
       GoRoute(
         path: '/settings',
-        builder: (context, state) => const SettingsScreen(),
+        builder: (context, state) => const PageWithFloatingButtons(
+          child: SettingsScreen(),
+        ),
       ),
       GoRoute(
         path: '/qr',
-        builder: (context, state) => const QRScreen(),
+        builder: (context, state) => const PageWithFloatingButtons(
+          child: QRScreen(),
+        ),
       ),
       GoRoute(
         path: '/rewards',
-        builder: (context, state) => const RewardsScreen(),
+        builder: (context, state) => const PageWithFloatingButtons(
+          child: RewardsScreen(),
+        ),
       ),
       GoRoute(
         path: '/eco-tracker',
-        builder: (context, state) => const EcoTrackerScreen(),
+        builder: (context, state) => const PageWithFloatingButtons(
+          child: EcoTrackerScreen(),
+        ),
       ),
       GoRoute(
         path: '/community',
-        builder: (context, state) => const CommunityScreen(),
+        builder: (context, state) => const PageWithFloatingButtons(
+          child: CommunityScreen(),
+        ),
       ),
       GoRoute(
         path: '/language-settings',
-        builder: (context, state) => const LanguageSettingsScreen(),
+        builder: (context, state) => const PageWithFloatingButtons(
+          child: LanguageSettingsScreen(),
+        ),
       ),
       GoRoute(
         path: '/voice-settings',
-        builder: (context, state) => const VoiceSettingsScreen(),
+        builder: (context, state) => const PageWithFloatingButtons(
+          child: VoiceSettingsScreen(),
+        ),
       ),
       GoRoute(
         path: '/location-settings',
-        builder: (context, state) => const LocationSettingsScreen(),
+        builder: (context, state) => const PageWithFloatingButtons(
+          child: LocationSettingsScreen(),
+        ),
       ),
       GoRoute(
         path: '/set-location',
-        builder: (context, state) => const SetLocationScreen(),
+        builder: (context, state) => const PageWithFloatingButtons(
+          child: SetLocationScreen(),
+        ),
       ),
       GoRoute(
         path: '/payment',
         builder: (context, state) {
           final book = state.extra as RequestBook;
-          return PaymentScreen(book: book);
+          return PageWithFloatingButtons(
+            child: PaymentScreen(book: book),
+          );
         },
       ),
     ],

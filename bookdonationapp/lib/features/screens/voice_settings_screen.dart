@@ -26,7 +26,7 @@ class _VoiceSettingsScreenState extends ConsumerState<VoiceSettingsScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go('/home'),
         ),
         title: const Text('Voice Assistant'),
       ),

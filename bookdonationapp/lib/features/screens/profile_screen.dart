@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/responsive.dart';
 import '../auth/auth_provider.dart';
 import '../auth/user_profile_model.dart';
 import 'widgets/profile_header.dart';
@@ -51,58 +52,64 @@ class ProfileScreen extends ConsumerWidget {
           ),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                children: [
-                  // Floating Stats Row with Transform - pushed higher
-                  Transform.translate(
-                    offset: const Offset(0, -64),
-                    child: FloatingStatsRow(user: user),
-                  ),
-                  const SizedBox(height: 24), // More space after floating cards
-                  MenuCard(),
-                  const SizedBox(height: 12),
-                  QuickStatsCard(user: user),
-                  const SizedBox(height: 12),
-                  const ShortcutGrid(),
-                  const SizedBox(height: 12),
-                  const GamificationCard(),
-                  const SizedBox(height: 12),
-                  LogoutButton(
-                    onLogout: () async {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Logout'),
-                          content:
-                              const Text('Are you sure you want to logout?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppColors.destructiveRed,
+              padding: Responsive.horizontalPadding(context),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: Responsive.maxContentWidth(context),
+                ),
+                child: Column(
+                  children: [
+                    // Floating Stats Row with Transform - pushed higher
+                    Transform.translate(
+                      offset:
+                          Offset(0, Responsive.isMobile(context) ? -64 : -80),
+                      child: FloatingStatsRow(user: user),
+                    ),
+                    SizedBox(height: Responsive.spacing(context, mobile: 24)),
+                    MenuCard(),
+                    SizedBox(height: Responsive.spacing(context, mobile: 12)),
+                    QuickStatsCard(user: user),
+                    SizedBox(height: Responsive.spacing(context, mobile: 12)),
+                    const ShortcutGrid(),
+                    SizedBox(height: Responsive.spacing(context, mobile: 12)),
+                    const GamificationCard(),
+                    SizedBox(height: Responsive.spacing(context, mobile: 12)),
+                    LogoutButton(
+                      onLogout: () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Logout'),
+                            content:
+                                const Text('Are you sure you want to logout?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('Cancel'),
                               ),
-                              child: const Text('Logout'),
-                            ),
-                          ],
-                        ),
-                      );
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppColors.destructiveRed,
+                                ),
+                                child: const Text('Logout'),
+                              ),
+                            ],
+                          ),
+                        );
 
-                      if (confirmed == true && context.mounted) {
-                        final authSvc = ref.read(authServiceProvider);
-                        await authSvc.signOut();
-                        if (context.mounted) {
-                          context.go('/login');
+                        if (confirmed == true && context.mounted) {
+                          final authSvc = ref.read(authServiceProvider);
+                          await authSvc.signOut();
+                          if (context.mounted) {
+                            context.go('/login');
+                          }
                         }
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 80), // Bottom nav clearance
-                ],
+                      },
+                    ),
+                    SizedBox(height: Responsive.spacing(context, mobile: 80)),
+                  ],
+                ),
               ),
             ),
           ),

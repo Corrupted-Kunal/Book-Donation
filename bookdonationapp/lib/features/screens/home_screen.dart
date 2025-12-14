@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/responsive.dart';
 import '../auth/auth_provider.dart';
 import 'widgets/stat_card.dart';
 import 'widgets/donation_card.dart';
@@ -87,23 +88,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Recent Donations Section
-                    _buildRecentDonationsSection(),
-                    const SizedBox(height: 24),
-                    // Nearby Requests Section
-                    _buildNearbyRequestsSection(),
-                    const SizedBox(height: 24),
-                    // Quick Action Cards
-                    _buildQuickActionsSection(),
-                    const SizedBox(height: 24),
-                    // Impact Card
-                    _buildImpactSection(),
-                    const SizedBox(height: 24),
-                  ],
+                padding: Responsive.padding(context),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: Responsive.maxContentWidth(context),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Recent Donations Section
+                      _buildRecentDonationsSection(),
+                      SizedBox(height: Responsive.spacing(context, mobile: 24)),
+                      // Nearby Requests Section
+                      _buildNearbyRequestsSection(),
+                      SizedBox(height: Responsive.spacing(context, mobile: 24)),
+                      // Quick Action Cards
+                      _buildQuickActionsSection(),
+                      SizedBox(height: Responsive.spacing(context, mobile: 24)),
+                      // Impact Card
+                      _buildImpactSection(),
+                      SizedBox(height: Responsive.spacing(context, mobile: 24)),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -152,126 +158,173 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           // Content
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Welcome back,',
-                            style: AppTextStyles.welcomeText.copyWith(
-                              fontSize: 16,
-                              color: Colors.white.withOpacity(0.9),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$userName 👋',
-                            style: AppTextStyles.welcomeText.copyWith(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Notification Button
-                    GestureDetector(
-                      onTapDown: (_) => setState(() => _notificationPressed = true),
-                      onTapUp: (_) => setState(() => _notificationPressed = false),
-                      onTapCancel: () => setState(() => _notificationPressed = false),
-                      onTap: () {
-                        // Navigate to notifications
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Notifications coming soon')),
-                        );
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        transform: Matrix4.identity()
-                          ..scale(_notificationPressed ? 0.95 : 1.0),
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.3),
-                              width: 1,
-                            ),
-                          ),
-                          child: Stack(
-                            children: [
-                              const Center(
-                                child: Icon(
-                                  Icons.notifications,
-                                  color: Colors.white,
-                                  size: 24,
-                                ),
+            padding: Responsive.horizontalPadding(context).copyWith(
+              top: Responsive.spacing(context, mobile: 20),
+              bottom: Responsive.spacing(context, mobile: 24),
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: Responsive.maxContentWidth(context),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Welcome back,',
+                              style: AppTextStyles.welcomeText.copyWith(
+                                fontSize: 16 * Responsive.fontSizeMultiplier(context),
+                                color: Colors.white.withOpacity(0.9),
                               ),
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: Container(
-                                  width: 10,
-                                  height: 10,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.destructiveRed,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 2,
+                            ),
+                            SizedBox(height: Responsive.spacing(context, mobile: 4)),
+                            Text(
+                              '$userName 👋',
+                              style: AppTextStyles.welcomeText.copyWith(
+                                fontSize: 24 * Responsive.fontSizeMultiplier(context),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Notification Button
+                      GestureDetector(
+                        onTapDown: (_) => setState(() => _notificationPressed = true),
+                        onTapUp: (_) => setState(() => _notificationPressed = false),
+                        onTapCancel: () => setState(() => _notificationPressed = false),
+                        onTap: () {
+                          // Navigate to notifications
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Notifications coming soon')),
+                          );
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          transform: Matrix4.identity()
+                            ..scale(_notificationPressed ? 0.95 : 1.0),
+                          child: Container(
+                            width: Responsive.iconSize(context, mobile: 48),
+                            height: Responsive.iconSize(context, mobile: 48),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Stack(
+                              children: [
+                                Center(
+                                  child: Icon(
+                                    Icons.notifications,
+                                    color: Colors.white,
+                                    size: Responsive.iconSize(context, mobile: 24),
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 8,
+                                  right: 8,
+                                  child: Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.destructiveRed,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 2,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                // Stats Grid
-                Row(
-                  children: [
-                    Expanded(
-                      child: StatCard(
-                        label: 'Books Donated',
-                        value: '24',
-                        icon: Icons.book,
-                        iconColor: AppColors.primaryBlue,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: StatCard(
-                        label: 'Requests Fulfilled',
-                        value: '12',
-                        icon: Icons.favorite,
-                        iconColor: AppColors.secondaryBlue,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: StatCard(
-                        label: 'Trees Saved',
-                        value: '8',
-                        icon: Icons.eco,
-                        iconColor: AppColors.accentGreen,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                  SizedBox(height: Responsive.spacing(context, mobile: 24)),
+                  // Stats Grid
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isMobile = Responsive.isMobile(context);
+                      if (isMobile) {
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: StatCard(
+                                label: 'Books Donated',
+                                value: '24',
+                                icon: Icons.book,
+                                iconColor: AppColors.primaryBlue,
+                              ),
+                            ),
+                            SizedBox(width: Responsive.spacing(context, mobile: 12)),
+                            Expanded(
+                              child: StatCard(
+                                label: 'Requests Fulfilled',
+                                value: '12',
+                                icon: Icons.favorite,
+                                iconColor: AppColors.secondaryBlue,
+                              ),
+                            ),
+                            SizedBox(width: Responsive.spacing(context, mobile: 12)),
+                            Expanded(
+                              child: StatCard(
+                                label: 'Trees Saved',
+                                value: '8',
+                                icon: Icons.eco,
+                                iconColor: AppColors.accentGreen,
+                              ),
+                            ),
+                          ],
+                        );
+                      } else {
+                        // For larger screens, use a more spaced layout
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: StatCard(
+                                label: 'Books Donated',
+                                value: '24',
+                                icon: Icons.book,
+                                iconColor: AppColors.primaryBlue,
+                              ),
+                            ),
+                            SizedBox(width: Responsive.spacing(context, mobile: 16)),
+                            Expanded(
+                              child: StatCard(
+                                label: 'Requests Fulfilled',
+                                value: '12',
+                                icon: Icons.favorite,
+                                iconColor: AppColors.secondaryBlue,
+                              ),
+                            ),
+                            SizedBox(width: Responsive.spacing(context, mobile: 16)),
+                            Expanded(
+                              child: StatCard(
+                                label: 'Trees Saved',
+                                value: '8',
+                                icon: Icons.eco,
+                                iconColor: AppColors.accentGreen,
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -285,22 +338,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       children: [
         Text(
           'Recent Donations',
-          style: AppTextStyles.heading3,
+          style: AppTextStyles.heading3.copyWith(
+            fontSize: AppTextStyles.heading3.fontSize! * Responsive.fontSizeMultiplier(context),
+          ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: Responsive.spacing(context, mobile: 12)),
         SizedBox(
-          height: 240,
+          height: Responsive.isMobile(context) ? 240 : 280,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
             itemCount: _recentDonations.length,
             itemBuilder: (context, index) {
               final donation = _recentDonations[index];
-              return DonationCard(
-                title: donation['title'] as String,
-                author: donation['author'] as String,
-                status: donation['status'] as DonationStatus,
-                emoji: donation['emoji'] as String,
+              return Padding(
+                padding: EdgeInsets.only(
+                  right: Responsive.spacing(context, mobile: 12),
+                ),
+                child: DonationCard(
+                  title: donation['title'] as String,
+                  author: donation['author'] as String,
+                  status: donation['status'] as DonationStatus,
+                  emoji: donation['emoji'] as String,
+                ),
               );
             },
           ),
@@ -315,16 +375,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       children: [
         Text(
           'Nearby Requests',
-          style: AppTextStyles.heading3,
+          style: AppTextStyles.heading3.copyWith(
+            fontSize: AppTextStyles.heading3.fontSize! * Responsive.fontSizeMultiplier(context),
+          ),
         ),
-        const SizedBox(height: 12),
-        ..._nearbyRequests.map((request) => RequestCard(
-              title: request['title'] as String,
-              distance: request['distance'] as String,
-              requestorName: request['requestor'] as String,
-              onDonate: () {
-                context.push('/requests');
-              },
+        SizedBox(height: Responsive.spacing(context, mobile: 12)),
+        ..._nearbyRequests.map((request) => Padding(
+              padding: EdgeInsets.only(
+                bottom: Responsive.spacing(context, mobile: 12),
+              ),
+              child: RequestCard(
+                title: request['title'] as String,
+                distance: request['distance'] as String,
+                requestorName: request['requestor'] as String,
+                onDonate: () {
+                  context.push('/requests');
+                },
+              ),
             )),
       ],
     );
@@ -336,33 +403,63 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       children: [
         Text(
           'Quick Actions',
-          style: AppTextStyles.heading3,
+          style: AppTextStyles.heading3.copyWith(
+            fontSize: AppTextStyles.heading3.fontSize! * Responsive.fontSizeMultiplier(context),
+          ),
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: QuickActionCard(
-                text: 'Find donations near you',
-                icon: Icons.location_on,
-                gradient: AppColors.primaryGradient,
-                onTap: () {
-                  context.push('/requests');
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: QuickActionCard(
-                text: 'Donate digital books',
-                icon: Icons.book,
-                gradient: AppColors.amberGradient,
-                onTap: () {
-                  context.push('/ebook-list');
-                },
-              ),
-            ),
-          ],
+        SizedBox(height: Responsive.spacing(context, mobile: 12)),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (Responsive.isMobile(context)) {
+              return Column(
+                children: [
+                  QuickActionCard(
+                    text: 'Find donations near you',
+                    icon: Icons.location_on,
+                    gradient: AppColors.primaryGradient,
+                    onTap: () {
+                      context.push('/requests');
+                    },
+                  ),
+                  SizedBox(height: Responsive.spacing(context, mobile: 12)),
+                  QuickActionCard(
+                    text: 'Donate digital books',
+                    icon: Icons.book,
+                    gradient: AppColors.amberGradient,
+                    onTap: () {
+                      context.push('/ebook-list');
+                    },
+                  ),
+                ],
+              );
+            } else {
+              return Row(
+                children: [
+                  Expanded(
+                    child: QuickActionCard(
+                      text: 'Find donations near you',
+                      icon: Icons.location_on,
+                      gradient: AppColors.primaryGradient,
+                      onTap: () {
+                        context.push('/requests');
+                      },
+                    ),
+                  ),
+                  SizedBox(width: Responsive.spacing(context, mobile: 12)),
+                  Expanded(
+                    child: QuickActionCard(
+                      text: 'Donate digital books',
+                      icon: Icons.book,
+                      gradient: AppColors.amberGradient,
+                      onTap: () {
+                        context.push('/ebook-list');
+                      },
+                    ),
+                  ),
+                ],
+              );
+            }
+          },
         ),
       ],
     );

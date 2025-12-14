@@ -20,7 +20,10 @@ class _QRScreenState extends State<QRScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            // Navigate back to home
+            context.go('/home');
+          },
         ),
         title: const Text('QR Code'),
       ),
@@ -138,7 +141,8 @@ class _QRScreenState extends State<QRScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryBlue,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
             ),
           ],
@@ -208,7 +212,8 @@ class _QRScreenState extends State<QRScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryBlue,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
             ),
           ],
@@ -217,4 +222,3 @@ class _QRScreenState extends State<QRScreen> {
     );
   }
 }
-

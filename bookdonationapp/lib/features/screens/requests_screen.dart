@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/responsive.dart';
 import '../books/request_book_model.dart';
 import 'widgets/book_type_toggle.dart';
 import 'widgets/filter_pills.dart';
@@ -207,10 +208,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
         boxShadow: AppShadows.sharpXL,
       ),
       padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 20,
-        bottom: 24,
-        left: 24,
-        right: 24,
+        top: MediaQuery.of(context).padding.top +
+            Responsive.spacing(context, mobile: 20),
+        bottom: Responsive.spacing(context, mobile: 24),
+        left: Responsive.horizontalPadding(context).left,
+        right: Responsive.horizontalPadding(context).right,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -221,7 +223,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: Responsive.spacing(context, mobile: 16)),
           _buildSearchBar(),
         ],
       ),
@@ -248,9 +250,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
             size: 20,
           ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: Responsive.spacing(context, mobile: 16),
+            vertical: Responsive.spacing(context, mobile: 16),
           ),
         ),
         style: AppTextStyles.bodyMedium,
@@ -260,7 +262,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
 
   Widget _buildControls() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: Responsive.horizontalPadding(context).copyWith(
+        top: Responsive.spacing(context, mobile: 16),
+        bottom: Responsive.spacing(context, mobile: 16),
+      ),
       color: Colors.white,
       child: Column(
         children: [
@@ -281,7 +286,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
               });
             },
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: Responsive.spacing(context, mobile: 12)),
           FilterPills(
             activeFilter: _activeFilter,
             onFilterChanged: (filter) {
@@ -328,11 +333,13 @@ class _RequestsScreenState extends State<RequestsScreen> {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(24),
+      padding: Responsive.padding(context),
       itemCount: books.length,
       itemBuilder: (context, index) {
         return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
+          padding: EdgeInsets.only(
+            bottom: Responsive.spacing(context, mobile: 12),
+          ),
           child: BookRequestCard(
             book: books[index],
             onTap: () {

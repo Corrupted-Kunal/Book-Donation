@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../books/ebook_model.dart';
@@ -175,7 +176,7 @@ class _EBookListingScreenState extends State<EBookListingScreen> {
                 color: Colors.white.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(AppRadius.badge),
                 child: InkWell(
-                  onTap: () => Navigator.pop(context),
+                  onTap: () => context.go('/home'),
                   borderRadius: BorderRadius.circular(AppRadius.badge),
                   child: Container(
                     width: 40,

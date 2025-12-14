@@ -41,7 +41,7 @@ class BookDetailScreen extends StatelessWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go('/home'),
         ),
         title: const Text('Book Details'),
       ),
