@@ -1,17 +1,28 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../auth/auth_provider.dart';
+import '../books/book_model.dart';
+import '../books/book_provider.dart';
+import '../certificates/certificate_provider.dart';
 
-class QRScreen extends StatefulWidget {
+class QRScreen extends ConsumerStatefulWidget {
   const QRScreen({super.key});
 
   @override
-  State<QRScreen> createState() => _QRScreenState();
+  ConsumerState<QRScreen> createState() => _QRScreenState();
 }
 
-class _QRScreenState extends State<QRScreen> {
-  String _selectedTab = 'generate'; // 'generate' or 'scan'
+class _QRScreenState extends ConsumerState<QRScreen> {
+  String _selectedTab = 'generate';
+  Book? _selectedBookForQr;
+  bool _scanProcessed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -20,16 +31,12 @@ class _QRScreenState extends State<QRScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // Navigate back to home
-            context.go('/home');
-          },
+          onPressed: () => context.go('/home'),
         ),
         title: const Text('QR Code'),
       ),
       body: Column(
         children: [
-          // Tab Selector
           Container(
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(4),
@@ -51,13 +58,15 @@ class _QRScreenState extends State<QRScreen> {
                   child: _buildTabButton(
                     'Scan',
                     _selectedTab == 'scan',
-                    () => setState(() => _selectedTab = 'scan'),
+                    () => setState(() {
+                      _selectedTab = 'scan';
+                      _scanProcessed = false;
+                    }),
                   ),
                 ),
               ],
             ),
           ),
-          // Content
           Expanded(
             child: _selectedTab == 'generate'
                 ? _buildGenerateView()
@@ -94,130 +103,297 @@ class _QRScreenState extends State<QRScreen> {
   }
 
   Widget _buildGenerateView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: AppShadows.sharpLarge,
+    final currentUser = ref.watch(authStateProvider).value;
+    final booksAsync = ref.watch(booksStreamProvider);
+
+    if (currentUser == null) {
+      return Center(
+        child: Text(
+          'Sign in to generate QR code.',
+          style: AppTextStyles.bodyMedium.copyWith(
+            color: AppColors.textMuted,
+          ),
+        ),
+      );
+    }
+
+    return booksAsync.when(
+      data: (allBooks) {
+        final acceptedBooks = allBooks
+            .where((b) =>
+                b.ownerId == currentUser.uid && b.status == 'accepted')
+            .toList();
+
+        if (acceptedBooks.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.qr_code_2,
+                    size: 64,
+                    color: AppColors.textMuted,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No accepted requests',
+                    style: AppTextStyles.heading3,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Accept a book request in My Donations, then return here to show the QR code to the buyer.',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-              child: const Center(
-                child: Icon(
-                  Icons.qr_code,
-                  size: 120,
-                  color: AppColors.primaryBlue,
+            ),
+          );
+        }
+
+        final selected = _selectedBookForQr ?? acceptedBooks.first;
+        if (_selectedBookForQr == null && acceptedBooks.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _selectedBookForQr = acceptedBooks.first);
+          });
+        }
+
+        final qrPayload = jsonEncode({
+          'bookId': selected.id,
+          'buyerUid': selected.requestedBy ?? '',
+          'verificationToken': selected.verificationToken ?? '',
+        });
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              if (acceptedBooks.length > 1) ...[
+                Text(
+                  'Select book',
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<Book>(
+                  value: selected,
+                  items: acceptedBooks
+                      .map((b) => DropdownMenuItem(
+                            value: b,
+                            child: Text(
+                              b.title,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ))
+                      .toList(),
+                  onChanged: (b) => setState(() => _selectedBookForQr = b),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: AppColors.inputBg,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: AppShadows.sharpLarge,
+                ),
+                child: QrImageView(
+                  data: qrPayload,
+                  version: QrVersions.auto,
+                  size: 220,
+                  backgroundColor: Colors.white,
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Your QR Code',
-              style: AppTextStyles.heading3,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Share this QR code to verify your book donation',
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.textMuted,
+              const SizedBox(height: 16),
+              Text(
+                selected.title,
+                style: AppTextStyles.bodyLarge.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('QR code shared!')),
-                );
-              },
-              icon: const Icon(Icons.share),
-              label: const Text('Share QR Code'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryBlue,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              const SizedBox(height: 8),
+              Text(
+                'Show this QR to the buyer to complete the handover',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textMuted,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
-          ],
+            ],
+          ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, _) => Center(
+        child: Text(
+          'Failed to load: $err',
+          style: AppTextStyles.bodyMedium.copyWith(
+            color: AppColors.destructiveRed,
+          ),
+          textAlign: TextAlign.center,
         ),
       ),
     );
   }
 
   Widget _buildScanView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: AppColors.primaryBlue,
-                  width: 3,
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Center(
-                child: Icon(
-                  Icons.qr_code_scanner,
-                  size: 100,
-                  color: AppColors.primaryBlue,
-                ),
-              ),
+    final currentUser = ref.watch(authStateProvider).value;
+
+    if (currentUser == null) {
+      return Center(
+        child: Text(
+          'Sign in to scan.',
+          style: AppTextStyles.bodyMedium.copyWith(
+            color: AppColors.textMuted,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Expanded(
+          flex: 1,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: MobileScanner(
+              onDetect: (capture) => _onBarcodeDetected(capture, currentUser.uid),
             ),
-            const SizedBox(height: 24),
-            Text(
-              'Scan QR Code',
-              style: AppTextStyles.heading3,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Point your camera at the donor\'s QR code to complete the handover',
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textMuted,
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Point your camera at a QR code to verify book donation',
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.textMuted,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () {
-                // Simulate scan success
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Verification Successful'),
-                    content: const Text('Book donation verified!'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('OK'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              icon: const Icon(Icons.camera_alt),
-              label: const Text('Start Scanning'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryBlue,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _onBarcodeDetected(BarcodeCapture capture, String currentUserUid) async {
+    if (_scanProcessed) return;
+
+    final barcode = capture.barcodes.isNotEmpty ? capture.barcodes.first : null;
+    final raw = barcode?.rawValue;
+    if (raw == null || raw.isEmpty) return;
+
+    Map<String, dynamic>? payload;
+    try {
+      payload = jsonDecode(raw) as Map<String, dynamic>?;
+    } catch (_) {
+      return;
+    }
+    if (payload == null) return;
+
+    final bookId = payload['bookId'] as String?;
+    final buyerUid = payload['buyerUid'] as String?;
+    final verificationToken = payload['verificationToken'] as String?;
+
+    if (bookId == null || buyerUid == null || verificationToken == null) return;
+
+    if (buyerUid != currentUserUid) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This QR code was generated for another user.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _scanProcessed = true);
+
+    try {
+      final bookService = ref.read(bookServiceProvider);
+      final book = await bookService.getBookById(bookId);
+
+      if (book == null) {
+        if (mounted) _showErrorDialog('Book not found.');
+        return;
+      }
+      if (book.status != 'accepted') {
+        if (mounted) _showErrorDialog('This book is not in accepted state.');
+        return;
+      }
+      if (book.requestedBy != currentUserUid) {
+        if (mounted) _showErrorDialog('You are not the requester of this book.');
+        return;
+      }
+      if (book.verificationToken != verificationToken) {
+        if (mounted) _showErrorDialog('Invalid verification token.');
+        return;
+      }
+
+      await bookService.completeVerification(bookId);
+
+      final certificateService = ref.read(certificateServiceProvider);
+      final certificateCreated = await certificateService.createCertificateIfNotExists(bookId, book.ownerId);
+      if (mounted && certificateCreated) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Donation Certificate Generated Successfully'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Handover complete'),
+          content: Text(
+            'You have received "${book.title}". Thank you!',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
             ),
           ],
         ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _scanProcessed = false);
+        _showErrorDialog('Verification failed: $e');
+      }
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Verification failed'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }

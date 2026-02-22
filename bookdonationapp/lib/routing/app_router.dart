@@ -10,7 +10,9 @@ import '../features/screens/home_screen.dart';
 import '../features/screens/donate_screen.dart';
 import '../features/screens/requests_screen.dart';
 import '../features/screens/ebook_listing_screen.dart' show EBookListingScreen;
+import '../features/screens/chat_list_screen.dart';
 import '../features/screens/chat_screen.dart';
+import '../features/chat/chat_model.dart';
 import '../features/screens/profile_screen.dart';
 import '../features/screens/book_detail_screen.dart';
 import '../features/screens/settings_screen.dart';
@@ -23,7 +25,7 @@ import '../features/screens/voice_settings_screen.dart';
 import '../features/screens/location_settings_screen.dart';
 import '../features/screens/set_location_screen.dart';
 import '../features/screens/payment_screen.dart';
-import '../features/books/request_book_model.dart';
+import '../features/books/book_model.dart';
 import '../features/screens/widgets/bottom_nav_bar.dart';
 import '../features/screens/widgets/floating_action_buttons_group.dart';
 import '../features/screens/widgets/page_with_floating_buttons.dart';
@@ -101,7 +103,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/chat',
-            builder: (context, state) => const ChatScreen(),
+            builder: (context, state) => const ChatListScreen(),
           ),
           GoRoute(
             path: '/profile',
@@ -119,9 +121,21 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/book-detail/:id',
         builder: (context, state) {
-          final bookId = state.pathParameters['id']!;
+          final book = state.extra as Book?;
+          if (book == null) {
+            return PageWithFloatingButtons(
+              child: Scaffold(
+                body: Center(
+                  child: Text(
+                    'Book not found',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ),
+              ),
+            );
+          }
           return PageWithFloatingButtons(
-            child: BookDetailScreen(bookId: bookId),
+            child: BookDetailScreen(book: book),
           );
         },
       ),
@@ -180,9 +194,22 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        path: '/chat/:chatId',
+        builder: (context, state) {
+          final chatId = state.pathParameters['chatId']!;
+          final chat = state.extra as ChatListItem?;
+          return PageWithFloatingButtons(
+            child: ChatScreen(
+              chatId: chatId,
+              bookTitle: chat?.bookTitle,
+            ),
+          );
+        },
+      ),
+      GoRoute(
         path: '/payment',
         builder: (context, state) {
-          final book = state.extra as RequestBook;
+          final book = state.extra as Book;
           return PageWithFloatingButtons(
             child: PaymentScreen(book: book),
           );

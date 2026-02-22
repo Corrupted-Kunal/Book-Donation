@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
-import '../books/request_book_model.dart';
+import '../books/book_model.dart';
+import '../books/book_provider.dart';
 
-class PaymentScreen extends StatelessWidget {
-  final RequestBook book;
+class PaymentScreen extends ConsumerStatefulWidget {
+  final Book book;
 
   const PaymentScreen({
     super.key,
@@ -13,7 +15,52 @@ class PaymentScreen extends StatelessWidget {
   });
 
   @override
+  ConsumerState<PaymentScreen> createState() => _PaymentScreenState();
+}
+
+class _PaymentScreenState extends ConsumerState<PaymentScreen> {
+  bool _isProcessing = false;
+
+  Future<void> _handlePay() async {
+    setState(() => _isProcessing = true);
+    try {
+      final bookService = ref.read(bookServiceProvider);
+      await bookService.updateBookStatus(widget.book.id, 'sold');
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Payment Successful (Demo Mode)'),
+          content: const Text(
+            'Your order has been placed successfully. This is a demo — no real payment was processed.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      context.go('/home');
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Payment failed: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final book = widget.book;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -28,7 +75,6 @@ class PaymentScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Book Summary
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -45,10 +91,10 @@ class PaymentScreen extends StatelessWidget {
                       color: AppColors.mutedBg,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Center(
+                    child: const Center(
                       child: Text(
-                        book.image,
-                        style: const TextStyle(fontSize: 40),
+                        '📚',
+                        style: TextStyle(fontSize: 40),
                       ),
                     ),
                   ),
@@ -72,7 +118,7 @@ class PaymentScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '₹${book.price.toInt()}',
+                          '₹${book.price.toStringAsFixed(0)}',
                           style: AppTextStyles.heading3.copyWith(
                             color: AppColors.primaryBlue,
                           ),
@@ -84,7 +130,6 @@ class PaymentScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            // Payment Method
             Text(
               'Payment Method',
               style: AppTextStyles.heading3,
@@ -122,7 +167,7 @@ class PaymentScreen extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          'Add payment method',
+                          'Add payment method (Demo)',
                           style: AppTextStyles.bodySmall.copyWith(
                             color: AppColors.textMuted,
                           ),
@@ -135,7 +180,6 @@ class PaymentScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            // Order Summary
             Text(
               'Order Summary',
               style: AppTextStyles.heading3,
@@ -158,7 +202,7 @@ class PaymentScreen extends StatelessWidget {
                         style: AppTextStyles.bodyMedium,
                       ),
                       Text(
-                        '₹${book.price.toInt()}',
+                        '₹${book.price.toStringAsFixed(0)}',
                         style: AppTextStyles.bodyMedium,
                       ),
                     ],
@@ -174,7 +218,7 @@ class PaymentScreen extends StatelessWidget {
                         style: AppTextStyles.heading3,
                       ),
                       Text(
-                        '₹${book.price.toInt()}',
+                        '₹${book.price.toStringAsFixed(0)}',
                         style: AppTextStyles.heading3.copyWith(
                           color: AppColors.primaryBlue,
                         ),
@@ -185,29 +229,10 @@ class PaymentScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 32),
-            // Pay Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Payment Successful'),
-                      content: const Text('Your order has been placed successfully!'),
-                      actions: [
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            context.pop();
-                            context.pop();
-                          },
-                          child: const Text('OK'),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                onPressed: _isProcessing ? null : _handlePay,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryBlue,
                   foregroundColor: Colors.white,
@@ -216,13 +241,22 @@ class PaymentScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(AppRadius.badge),
                   ),
                 ),
-                child: Text(
-                  'Pay ₹${book.price.toInt()}',
-                  style: AppTextStyles.bodyLarge.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                child: _isProcessing
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Text(
+                        'Pay ₹${book.price.toStringAsFixed(0)}',
+                        style: AppTextStyles.bodyLarge.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
               ),
             ),
           ],
@@ -231,4 +265,3 @@ class PaymentScreen extends StatelessWidget {
     );
   }
 }
-

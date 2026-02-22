@@ -1,12 +1,17 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../auth/auth_provider.dart';
 import '../books/book_provider.dart';
 import 'widgets/status_badge.dart';
 import 'widgets/donation_history_card.dart';
+import 'widgets/upload_button.dart';
 
 class DonateScreen extends ConsumerStatefulWidget {
   const DonateScreen({super.key});
@@ -19,14 +24,31 @@ class _DonateScreenState extends ConsumerState<DonateScreen> {
   bool showForm = false;
   bool _isSubmitting = false;
 
+  static const List<String> _conditionOptions = ['New', 'Like New', 'Good', 'Fair'];
+  String _selectedCondition = 'Good';
+  bool _isSelling = false; // false = Free Donation, true = Sell Book
+  XFile? _pickedImage;
+
   final _titleController = TextEditingController();
   final _authorController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _priceController = TextEditingController();
 
   @override
   void dispose() {
     _titleController.dispose();
     _authorController.dispose();
+    _descriptionController.dispose();
+    _priceController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: source, imageQuality: 75);
+    if (picked != null && mounted) {
+      setState(() => _pickedImage = picked);
+    }
   }
 
   DonationStatus _bookStatusToDonationStatus(String status) {
@@ -71,6 +93,18 @@ class _DonateScreenState extends ConsumerState<DonateScreen> {
       _showToast('Please enter author name');
       return;
     }
+    if (_isSelling) {
+      final priceStr = _priceController.text.trim();
+      if (priceStr.isEmpty) {
+        _showToast('Please enter price');
+        return;
+      }
+      final price = double.tryParse(priceStr);
+      if (price == null || price < 0) {
+        _showToast('Please enter a valid price');
+        return;
+      }
+    }
 
     final user = ref.read(authStateProvider).value;
     if (user == null) {
@@ -82,16 +116,28 @@ class _DonateScreenState extends ConsumerState<DonateScreen> {
 
     try {
       final bookService = ref.read(bookServiceProvider);
+      final price = _isSelling
+          ? (double.tryParse(_priceController.text.trim()) ?? 0.0)
+          : 0.0;
       await bookService.addBook(
         title: title,
         author: author,
         ownerId: user.uid,
+        condition: _selectedCondition,
+        description: _descriptionController.text.trim(),
+        price: price,
+        isPaid: _isSelling,
       );
 
       if (!mounted) return;
       _showSuccessToast();
       _titleController.clear();
       _authorController.clear();
+      _descriptionController.clear();
+      _priceController.clear();
+      _selectedCondition = 'Good';
+      _isSelling = false;
+      _pickedImage = null;
       setState(() {
         _isSubmitting = false;
         showForm = false;
@@ -142,6 +188,30 @@ class _DonateScreenState extends ConsumerState<DonateScreen> {
         duration: const Duration(seconds: 3),
       ),
     );
+  }
+
+  Future<void> _acceptRequest(String bookId) async {
+    try {
+      final bookService = ref.read(bookServiceProvider);
+      final token = const Uuid().v4();
+      await bookService.acceptRequest(bookId, token);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Request accepted. Show QR to the buyer to complete.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to accept: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -227,12 +297,33 @@ class _DonateScreenState extends ConsumerState<DonateScreen> {
                         children: myBooks
                             .map((book) => Padding(
                                   padding: const EdgeInsets.only(bottom: 12),
-                                  child: DonationHistoryCard(
-                                    title: book.title,
-                                    category: book.author,
-                                    status: _bookStatusToDonationStatus(book.status),
-                                    timeAgo: _getTimeAgo(book.createdAt),
-                                    emoji: '📚',
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      DonationHistoryCard(
+                                        title: book.title,
+                                        category: book.author,
+                                        status: _bookStatusToDonationStatus(book.status),
+                                        timeAgo: _getTimeAgo(book.createdAt),
+                                        emoji: '📚',
+                                      ),
+                                      if (book.status == 'requested') ...[
+                                        const SizedBox(height: 8),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton.icon(
+                                            onPressed: () => _acceptRequest(book.id),
+                                            icon: const Icon(Icons.check_circle, size: 18),
+                                            label: const Text('Accept Request'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: AppColors.accentGreen,
+                                              foregroundColor: Colors.white,
+                                              padding: const EdgeInsets.symmetric(vertical: 10),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ))
                             .toList(),
@@ -276,6 +367,18 @@ class _DonateScreenState extends ConsumerState<DonateScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildFormFields(),
+                const SizedBox(height: 24),
+                _buildDonationTypeToggle(),
+                const SizedBox(height: 24),
+                if (_isSelling) ...[
+                  _buildPriceField(),
+                  const SizedBox(height: 24),
+                ],
+                _buildConditionDropdown(),
+                const SizedBox(height: 24),
+                _buildDescriptionField(),
+                const SizedBox(height: 24),
+                _buildImagePicker(),
                 const SizedBox(height: 32),
                 _buildSubmitButton(),
                 const SizedBox(height: 80),
@@ -477,6 +580,290 @@ class _DonateScreenState extends ConsumerState<DonateScreen> {
           required: true,
         ),
       ],
+    );
+  }
+
+  Widget _buildDonationTypeToggle() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Donation Type',
+          style: AppTextStyles.bodyMedium.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildToggleChip(
+                label: 'Free Donation',
+                emoji: '🎁',
+                selected: !_isSelling,
+                onTap: () => setState(() => _isSelling = false),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildToggleChip(
+                label: 'Sell Book',
+                emoji: '💰',
+                selected: _isSelling,
+                onTap: () => setState(() => _isSelling = true),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildToggleChip({
+    required String label,
+    required String emoji,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: selected ? AppColors.primaryBlue.withOpacity(0.15) : AppColors.inputBg,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? AppColors.primaryBlue : AppColors.border,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 28)),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: AppTextStyles.bodySmall.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: selected ? AppColors.primaryBlue : AppColors.textPrimary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPriceField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Price (₹)',
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Text(
+              '*',
+              style: TextStyle(color: AppColors.destructiveRed),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _priceController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            hintText: 'Enter price',
+            prefixIcon: const Icon(Icons.currency_rupee, color: AppColors.textMuted),
+            filled: true,
+            fillColor: AppColors.inputBg,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide:
+                  const BorderSide(color: AppColors.primaryBlue, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          ),
+          style: AppTextStyles.bodyMedium,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildConditionDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Condition',
+          style: AppTextStyles.bodyMedium.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.inputBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: DropdownButtonFormField<String>(
+            value: _selectedCondition,
+            items: _conditionOptions.map((item) {
+              return DropdownMenuItem(
+                value: item,
+                child: Text(item, style: AppTextStyles.bodyMedium),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) setState(() => _selectedCondition = value);
+            },
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
+            ),
+            style: AppTextStyles.bodyMedium,
+            icon: const Icon(Icons.arrow_drop_down),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDescriptionField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Description (Optional)',
+          style: AppTextStyles.bodyMedium.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _descriptionController,
+          maxLines: 4,
+          minLines: 3,
+          decoration: InputDecoration(
+            hintText: 'Tell us about the book...',
+            filled: true,
+            fillColor: AppColors.inputBg,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide:
+                  const BorderSide(color: AppColors.primaryBlue, width: 2),
+            ),
+            contentPadding: const EdgeInsets.all(16),
+          ),
+          style: AppTextStyles.bodyMedium,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImagePicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Book Image (Optional, preview only)',
+          style: AppTextStyles.bodyMedium.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: UploadButton(
+                icon: Icons.camera_alt,
+                label: 'Camera',
+                onTap: () => _pickImage(ImageSource.camera),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: UploadButton(
+                icon: Icons.photo_library,
+                label: 'Gallery',
+                onTap: () => _pickImage(ImageSource.gallery),
+              ),
+            ),
+          ],
+        ),
+        if (_pickedImage != null) ...[
+          const SizedBox(height: 12),
+          _buildImagePreview(),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildImagePreview() {
+    final xFile = _pickedImage!;
+    return Container(
+      height: 120,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppColors.mutedBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: FutureBuilder<Uint8List>(
+          future: xFile.readAsBytes(),
+          builder: (context, snapshot) {
+            if (snapshot.hasData && snapshot.data != null) {
+              return Image.memory(
+                snapshot.data!,
+                fit: BoxFit.cover,
+              );
+            }
+            if (snapshot.hasError) {
+              return Center(
+                child: Text(
+                  'Preview unavailable',
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              );
+            }
+            return const Center(child: CircularProgressIndicator());
+          },
+        ),
+      ),
     );
   }
 

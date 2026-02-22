@@ -31,29 +31,29 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
       id: book.id,
       title: book.title,
       author: book.author,
-      category: book.status,
-      condition: '—',
+      category: book.condition.isNotEmpty ? book.condition : book.status,
+      condition: book.condition.isNotEmpty ? book.condition : '—',
       donor: '—',
       city: '—',
       distance: '—',
       rating: 0,
       image: '📚',
-      price: 0,
-      isFree: true,
+      price: book.price,
+      isFree: !book.isPaid,
       dateAdded: book.createdAt,
       requestCount: null,
     );
   }
 
-  List<RequestBook> _filterAndSort(List<Book> books) {
-    List<Book> result = List.from(books);
+  List<Book> _filterAndSort(List<Book> books) {
+    List<Book> result = books.where((b) => b.status == 'available').toList();
 
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       result = result.where((book) {
         return book.title.toLowerCase().contains(query) ||
             book.author.toLowerCase().contains(query) ||
-            book.status.toLowerCase().contains(query);
+            (book.condition.toLowerCase().contains(query));
       }).toList();
     }
 
@@ -68,7 +68,7 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
         break;
     }
 
-    return result.map(_bookToRequestBook).toList();
+    return result;
   }
 
   void _onSearchChanged(String value) {
@@ -220,7 +220,7 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
     );
   }
 
-  Widget _buildBookList(List<RequestBook> books) {
+  Widget _buildBookList(List<Book> books) {
     if (books.isEmpty) {
       return Center(
         child: Column(
@@ -260,9 +260,9 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
             bottom: Responsive.spacing(context, mobile: 12),
           ),
           child: BookRequestCard(
-            book: book,
+            book: _bookToRequestBook(book),
             onTap: () {
-              context.push('/book-detail/${book.id}');
+              context.push('/book-detail/${book.id}', extra: book);
             },
           ),
         );
