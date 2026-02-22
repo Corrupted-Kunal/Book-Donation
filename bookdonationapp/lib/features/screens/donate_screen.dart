@@ -1,98 +1,47 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../auth/auth_provider.dart';
+import '../books/book_provider.dart';
 import 'widgets/status_badge.dart';
-import 'widgets/radio_card.dart';
-import 'widgets/upload_button.dart';
 import 'widgets/donation_history_card.dart';
 
-// Mock donation data
-class DonationItem {
-  final String id;
-  final String title;
-  final String category;
-  final DonationStatus status;
-  final DateTime createdAt;
-  final String emoji;
-
-  DonationItem({
-    required this.id,
-    required this.title,
-    required this.category,
-    required this.status,
-    required this.createdAt,
-    this.emoji = '📚',
-  });
-}
-
-class DonateScreen extends StatefulWidget {
+class DonateScreen extends ConsumerStatefulWidget {
   const DonateScreen({super.key});
 
   @override
-  State<DonateScreen> createState() => _DonateScreenState();
+  ConsumerState<DonateScreen> createState() => _DonateScreenState();
 }
 
-class _DonateScreenState extends State<DonateScreen> {
+class _DonateScreenState extends ConsumerState<DonateScreen> {
   bool showForm = false;
-  String donationType = "free";
-  String price = "";
+  bool _isSubmitting = false;
 
-  // Form controllers
   final _titleController = TextEditingController();
   final _authorController = TextEditingController();
-  final _priceController = TextEditingController();
-  final _descriptionController = TextEditingController();
-
-  String? _selectedCategory;
-  String? _selectedCondition;
-  XFile? _pickedImage;
-
-  // Mock donation history
-  final List<DonationItem> _donations = [
-    DonationItem(
-      id: '1',
-      title: 'College',
-      category: 'College',
-      status: DonationStatus.pending,
-      createdAt: DateTime.now().subtract(const Duration(days: 2)),
-      emoji: '📖',
-    ),
-    DonationItem(
-      id: '2',
-      title: 'Clean Code',
-      category: 'Professional',
-      status: DonationStatus.confirmed,
-      createdAt: DateTime.now().subtract(const Duration(days: 5)),
-      emoji: '💼',
-    ),
-    DonationItem(
-      id: '3',
-      title: 'Harry Potter - Book 1',
-      category: 'Fiction',
-      status: DonationStatus.completed,
-      createdAt: DateTime.now().subtract(const Duration(days: 7)),
-      emoji: '🧙',
-    ),
-    DonationItem(
-      id: '4',
-      title: 'Data Structures',
-      category: 'School',
-      status: DonationStatus.inTransit,
-      createdAt: DateTime.now().subtract(const Duration(days: 3)),
-      emoji: '📊',
-    ),
-  ];
 
   @override
   void dispose() {
     _titleController.dispose();
     _authorController.dispose();
-    _priceController.dispose();
-    _descriptionController.dispose();
     super.dispose();
+  }
+
+  DonationStatus _bookStatusToDonationStatus(String status) {
+    switch (status.toLowerCase()) {
+      case 'available':
+        return DonationStatus.pending;
+      case 'claimed':
+        return DonationStatus.confirmed;
+      case 'in_transit':
+        return DonationStatus.inTransit;
+      case 'completed':
+        return DonationStatus.completed;
+      default:
+        return DonationStatus.pending;
+    }
   }
 
   String _getTimeAgo(DateTime date) {
@@ -110,57 +59,49 @@ class _DonateScreenState extends State<DonateScreen> {
     }
   }
 
-  Future<void> _pickImage(ImageSource source) async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: source, imageQuality: 75);
-    if (picked != null) {
-      setState(() => _pickedImage = picked);
-    }
-  }
+  Future<void> _submitDonation() async {
+    final title = _titleController.text.trim();
+    final author = _authorController.text.trim();
 
-  void _submitDonation() {
-    // Validate required fields
-    if (_titleController.text.trim().isEmpty) {
+    if (title.isEmpty) {
       _showToast('Please enter book title');
       return;
     }
-    if (_authorController.text.trim().isEmpty) {
+    if (author.isEmpty) {
       _showToast('Please enter author name');
       return;
     }
-    if (_selectedCategory == null) {
-      _showToast('Please select a category');
-      return;
-    }
-    if (_selectedCondition == null) {
-      _showToast('Please select book condition');
-      return;
-    }
-    if (donationType == "paid" && _priceController.text.trim().isEmpty) {
-      _showToast('Please enter price');
+
+    final user = ref.read(authStateProvider).value;
+    if (user == null) {
+      _showToast('You must be signed in to donate');
       return;
     }
 
-    // Show success toast
-    _showSuccessToast();
+    setState(() => _isSubmitting = true);
 
-    // Reset form
-    _titleController.clear();
-    _authorController.clear();
-    _priceController.clear();
-    _descriptionController.clear();
-    _selectedCategory = null;
-    _selectedCondition = null;
-    _pickedImage = null;
-    donationType = "free";
-    price = "";
+    try {
+      final bookService = ref.read(bookServiceProvider);
+      await bookService.addBook(
+        title: title,
+        author: author,
+        ownerId: user.uid,
+      );
 
-    // Switch back to list view
-    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      _showSuccessToast();
+      _titleController.clear();
+      _authorController.clear();
+      setState(() {
+        _isSubmitting = false;
+        showForm = false;
+      });
+    } catch (e) {
       if (mounted) {
-        setState(() => showForm = false);
+        setState(() => _isSubmitting = false);
+        _showToast('Failed to add donation: $e');
       }
-    });
+    }
   }
 
   void _showToast(String message) {
@@ -230,6 +171,9 @@ class _DonateScreenState extends State<DonateScreen> {
   }
 
   Widget _buildMainView() {
+    final authUser = ref.watch(authStateProvider).value;
+    final booksAsync = ref.watch(booksStreamProvider);
+
     return Column(
       key: const ValueKey('main'),
       children: [
@@ -247,17 +191,71 @@ class _DonateScreenState extends State<DonateScreen> {
                   style: AppTextStyles.heading3,
                 ),
                 const SizedBox(height: 16),
-                ..._donations.map((donation) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: DonationHistoryCard(
-                        title: donation.title,
-                        category: donation.category,
-                        status: donation.status,
-                        timeAgo: _getTimeAgo(donation.createdAt),
-                        emoji: donation.emoji,
+                if (authUser == null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 24),
+                    child: Center(
+                      child: Text(
+                        'Sign in to see your donations.',
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.textMuted,
+                        ),
                       ),
-                    )),
-                const SizedBox(height: 80), // Bottom nav spacing
+                    ),
+                  )
+                else
+                  booksAsync.when(
+                    data: (allBooks) {
+                      final myBooks = allBooks
+                          .where((b) => b.ownerId == authUser.uid)
+                          .toList();
+                      if (myBooks.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 24),
+                          child: Center(
+                            child: Text(
+                              'No donations yet. Add your first book above.',
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                color: AppColors.textMuted,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        );
+                      }
+                      return Column(
+                        children: myBooks
+                            .map((book) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: DonationHistoryCard(
+                                    title: book.title,
+                                    category: book.author,
+                                    status: _bookStatusToDonationStatus(book.status),
+                                    timeAgo: _getTimeAgo(book.createdAt),
+                                    emoji: '📚',
+                                  ),
+                                ))
+                            .toList(),
+                      );
+                    },
+                    loading: () => const Padding(
+                      padding: EdgeInsets.only(top: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                    error: (err, _) => Padding(
+                      padding: const EdgeInsets.only(top: 24),
+                      child: Center(
+                        child: Text(
+                          'Failed to load donations: $err',
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.destructiveRed,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 80),
               ],
             ),
           ),
@@ -278,19 +276,9 @@ class _DonateScreenState extends State<DonateScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildFormFields(),
-                const SizedBox(height: 24),
-                _buildDonationTypeSelector(),
-                const SizedBox(height: 24),
-                if (donationType == "paid") ...[
-                  _buildPriceField(),
-                  const SizedBox(height: 24),
-                ],
-                _buildImageUpload(),
-                const SizedBox(height: 24),
-                _buildDescriptionField(),
                 const SizedBox(height: 32),
                 _buildSubmitButton(),
-                const SizedBox(height: 80), // Bottom nav spacing
+                const SizedBox(height: 80),
               ],
             ),
           ),
@@ -419,7 +407,6 @@ class _DonateScreenState extends State<DonateScreen> {
           icon: Icons.insert_drive_file,
           label: 'Donate E-Book',
           onPressed: () {
-            // Navigate to e-book donation screen
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('E-Book donation coming soon')),
             );
@@ -489,28 +476,6 @@ class _DonateScreenState extends State<DonateScreen> {
           hint: 'Enter author name',
           required: true,
         ),
-        const SizedBox(height: 20),
-        _buildDropdownField(
-          label: 'Category',
-          value: _selectedCategory,
-          items: const [
-            'School',
-            'College',
-            'Fiction',
-            'Professional',
-            'Others'
-          ],
-          onChanged: (value) => setState(() => _selectedCategory = value),
-          required: true,
-        ),
-        const SizedBox(height: 20),
-        _buildDropdownField(
-          label: 'Condition',
-          value: _selectedCondition,
-          items: const ['New', 'Good', 'Used'],
-          onChanged: (value) => setState(() => _selectedCondition = value),
-          required: true,
-        ),
       ],
     );
   }
@@ -572,265 +537,12 @@ class _DonateScreenState extends State<DonateScreen> {
     );
   }
 
-  Widget _buildDropdownField({
-    required String label,
-    required String? value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-    bool required = false,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              label,
-              style: AppTextStyles.bodyMedium.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            if (required) ...[
-              const SizedBox(width: 4),
-              const Text(
-                '*',
-                style: TextStyle(color: AppColors.destructiveRed),
-              ),
-            ],
-          ],
-        ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: AppColors.inputBg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: DropdownButtonFormField<String>(
-            value: value,
-            items: items.map((item) {
-              return DropdownMenuItem(
-                value: item,
-                child: Text(item, style: AppTextStyles.bodyMedium),
-              );
-            }).toList(),
-            onChanged: onChanged,
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 16,
-              ),
-            ),
-            style: AppTextStyles.bodyMedium,
-            icon: const Icon(Icons.arrow_drop_down),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDonationTypeSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Donation Type',
-          style: AppTextStyles.bodyMedium.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: RadioCard(
-                emoji: '🎁',
-                title: 'Free Donation',
-                isSelected: donationType == "free",
-                onTap: () => setState(() => donationType = "free"),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: RadioCard(
-                emoji: '💰',
-                title: 'Set Price',
-                isSelected: donationType == "paid",
-                onTap: () => setState(() => donationType = "paid"),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPriceField() {
-    return AnimatedOpacity(
-      opacity: donationType == "paid" ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 200),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'Price',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Text(
-                '*',
-                style: TextStyle(color: AppColors.destructiveRed),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _priceController,
-            keyboardType: TextInputType.number,
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-            ],
-            decoration: InputDecoration(
-              hintText: 'Enter price',
-              prefixIcon:
-                  const Icon(Icons.attach_money, color: AppColors.textMuted),
-              filled: true,
-              fillColor: AppColors.inputBg,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide:
-                    const BorderSide(color: AppColors.primaryBlue, width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 16,
-              ),
-            ),
-            style: AppTextStyles.bodyMedium,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildImageUpload() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Book Image',
-          style: AppTextStyles.bodyMedium.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: UploadButton(
-                icon: Icons.camera,
-                label: 'Camera',
-                onTap: () => _pickImage(ImageSource.camera),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: UploadButton(
-                icon: Icons.photo,
-                label: 'Gallery',
-                onTap: () => _pickImage(ImageSource.gallery),
-              ),
-            ),
-          ],
-        ),
-        if (_pickedImage != null) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.accentGreen.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.accentGreen.withOpacity(0.3)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.check, color: AppColors.accentGreen),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Image selected: ${_pickedImage!.name}',
-                    style: AppTextStyles.bodySmall.copyWith(
-                      color: AppColors.accentGreen,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildDescriptionField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Description (Optional)',
-          style: AppTextStyles.bodyMedium.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _descriptionController,
-          maxLines: 4,
-          minLines: 4,
-          decoration: InputDecoration(
-            hintText: 'Tell us about the book...',
-            filled: true,
-            fillColor: AppColors.inputBg,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  const BorderSide(color: AppColors.primaryBlue, width: 2),
-            ),
-            contentPadding: const EdgeInsets.all(16),
-          ),
-          style: AppTextStyles.bodyMedium,
-        ),
-      ],
-    );
-  }
-
   Widget _buildSubmitButton() {
     return SizedBox(
       width: double.infinity,
       height: 48,
       child: ElevatedButton(
-        onPressed: _submitDonation,
+        onPressed: _isSubmitting ? null : _submitDonation,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primaryBlue,
           foregroundColor: Colors.white,
@@ -840,13 +552,22 @@ class _DonateScreenState extends State<DonateScreen> {
             borderRadius: BorderRadius.circular(AppRadius.badge),
           ),
         ),
-        child: Text(
-          'Submit Donation',
-          style: AppTextStyles.bodyLarge.copyWith(
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
+        child: _isSubmitting
+            ? const SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : Text(
+                'Submit Donation',
+                style: AppTextStyles.bodyLarge.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
       ),
     );
   }
