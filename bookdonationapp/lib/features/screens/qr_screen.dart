@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/theme/app_colors.dart';
@@ -24,6 +25,15 @@ class _QRScreenState extends ConsumerState<QRScreen> {
   String _selectedTab = 'generate';
   Book? _selectedBookForQr;
   bool _scanProcessed = false;
+  bool _isProcessingGallery = false;
+  final MobileScannerController _scannerController = MobileScannerController();
+  final ImagePicker _imagePicker = ImagePicker();
+
+  @override
+  void dispose() {
+    _scannerController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -292,6 +302,7 @@ class _QRScreenState extends ConsumerState<QRScreen> {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: MobileScanner(
+              controller: _scannerController,
               onDetect: (capture) => _onBarcodeDetected(capture, currentUser.uid),
             ),
           ),
@@ -306,8 +317,67 @@ class _QRScreenState extends ConsumerState<QRScreen> {
             textAlign: TextAlign.center,
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _isProcessingGallery
+                  ? null
+                  : () => _scanFromGallery(currentUser.uid),
+              icon: _isProcessingGallery
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.photo_library_outlined),
+              label: Text(
+                _isProcessingGallery
+                    ? 'Scanning selected image...'
+                    : 'Scan QR from gallery',
+              ),
+            ),
+          ),
+        ),
       ],
     );
+  }
+
+  Future<void> _scanFromGallery(String currentUserUid) async {
+    if (_scanProcessed || _isProcessingGallery) return;
+
+    final image = await _imagePicker.pickImage(source: ImageSource.gallery);
+    if (image == null) return;
+
+    if (mounted) {
+      setState(() => _isProcessingGallery = true);
+    }
+
+    try {
+      final capture = await _scannerController.analyzeImage(image.path);
+      if (capture == null || capture.barcodes.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No QR code found in selected image.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      await _onBarcodeDetected(capture, currentUserUid);
+    } catch (e) {
+      if (mounted) {
+        _showErrorDialog('Unable to scan image from gallery: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessingGallery = false);
+      }
+    }
   }
 
   Future<void> _onBarcodeDetected(BarcodeCapture capture, String currentUserUid) async {
