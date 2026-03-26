@@ -15,3 +15,10 @@ final chatMessagesStreamProvider =
   final service = ref.watch(chatServiceProvider);
   return service.streamMessages(chatId);
 });
+
+/// Single chat document stream (no navigation `extra` required).
+final chatByIdStreamProvider =
+    StreamProvider.autoDispose.family<ChatListItem?, String>((ref, chatId) {
+  final service = ref.watch(chatServiceProvider);
+  return service.streamChatById(chatId);
+});

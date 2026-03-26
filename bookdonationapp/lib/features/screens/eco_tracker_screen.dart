@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../rewards/rewards_provider.dart';
+import 'widgets/eco_monthly_bar_chart.dart';
 
-class EcoTrackerScreen extends StatelessWidget {
+class EcoTrackerScreen extends ConsumerWidget {
   const EcoTrackerScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ecoImpact = ref.watch(ecoImpactProvider);
+    final donationCount = ref.watch(donationCountProvider);
+    final monthlyBuckets = ref.watch(ecoDonationsByMonthProvider);
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -46,7 +52,7 @@ class EcoTrackerScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    '8',
+                    ecoImpact.treesSaved.toString(),
                     style: AppTextStyles.heading1.copyWith(
                       color: Colors.white,
                       fontSize: 48,
@@ -66,44 +72,43 @@ class EcoTrackerScreen extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: _buildStatCard('24', 'Books Donated', Icons.book),
+                  child: _buildStatCard(
+                    donationCount.toString(),
+                    'Books Donated',
+                    Icons.book,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildStatCard('12', 'CO₂ Saved (kg)', Icons.air),
+                  child: _buildStatCard(
+                    ecoImpact.co2SavedKg.toStringAsFixed(1),
+                    'CO₂ Saved (kg)',
+                    Icons.air,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    ecoImpact.paperSavedKg.toStringAsFixed(1),
+                    'Paper Saved (kg)',
+                    Icons.menu_book,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 24),
-            // Chart Placeholder
             Container(
-              height: 200,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppColors.cardBg,
                 borderRadius: BorderRadius.circular(AppRadius.normalCard),
                 boxShadow: AppShadows.sharpBase,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Impact Over Time',
-                    style: AppTextStyles.heading3,
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        'Chart visualization coming soon',
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              child: EcoMonthlyBarChart(buckets: monthlyBuckets),
             ),
           ],
         ),

@@ -21,9 +21,7 @@ class MenuCard extends StatelessWidget {
             icon: Icons.edit,
             label: 'Edit Profile',
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Edit Profile coming soon')),
-              );
+              context.push('/edit-profile');
             },
           ),
           MenuItemRow(

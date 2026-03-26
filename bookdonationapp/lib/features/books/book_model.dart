@@ -6,6 +6,8 @@ class Book {
   final String author;
   final String coverUrl;
   final String ownerId;
+  /// Snapshot of donor display name when the book was listed (optional for legacy docs).
+  final String? ownerDisplayName;
   final String status;
   final DateTime createdAt;
   final String condition;
@@ -22,6 +24,7 @@ class Book {
     required this.author,
     required this.coverUrl,
     required this.ownerId,
+    this.ownerDisplayName,
     required this.status,
     required this.createdAt,
     this.condition = '',
@@ -42,6 +45,7 @@ class Book {
       author: data['author'] ?? '',
       coverUrl: data['coverUrl'] ?? '',
       ownerId: data['ownerId'] ?? '',
+      ownerDisplayName: data['ownerDisplayName'] as String?,
       status: data['status'] ?? 'available',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       condition: data['condition'] ?? '',
@@ -59,6 +63,8 @@ class Book {
         'author': author,
         'coverUrl': coverUrl,
         'ownerId': ownerId,
+        if (ownerDisplayName != null && ownerDisplayName!.trim().isNotEmpty)
+          'ownerDisplayName': ownerDisplayName!.trim(),
         'status': status,
         'createdAt': Timestamp.fromDate(createdAt),
         'condition': condition,
@@ -69,4 +75,12 @@ class Book {
         if (completedAt != null) 'completedAt': Timestamp.fromDate(completedAt!),
         if (requestedBy != null) 'requestedBy': requestedBy,
       };
+
+  /// UI label for the donor (name when available, else shortened uid).
+  String get donorLabel {
+    final n = ownerDisplayName?.trim();
+    if (n != null && n.isNotEmpty) return n;
+    if (ownerId.length > 8) return 'Donor ···${ownerId.substring(ownerId.length - 6)}';
+    return ownerId.isEmpty ? 'Unknown donor' : ownerId;
+  }
 }

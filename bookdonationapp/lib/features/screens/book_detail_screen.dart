@@ -4,16 +4,15 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../auth/auth_provider.dart';
-import '../books/book_model.dart';
 import '../books/book_provider.dart';
 import '../chat/chat_provider.dart';
 
 class BookDetailScreen extends ConsumerStatefulWidget {
-  final Book book;
+  final String bookId;
 
   const BookDetailScreen({
     super.key,
-    required this.book,
+    required this.bookId,
   });
 
   @override
@@ -25,218 +24,388 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final book = widget.book;
+    final authUser = ref.watch(authStateProvider).value;
+    final bookAsync = ref.watch(bookStreamByIdProvider(widget.bookId));
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/home'),
+    return bookAsync.when(
+      loading: () => Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go('/home'),
+          ),
+          title: const Text('Book Details'),
         ),
-        title: const Text('Book Details'),
+        body: const Center(child: CircularProgressIndicator()),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 200,
-                height: 280,
-                decoration: BoxDecoration(
-                  color: AppColors.mutedBg,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Center(
-                  child: Text(
-                    '📚',
-                    style: TextStyle(fontSize: 100),
-                  ),
-                ),
+      error: (err, _) => Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go('/home'),
+          ),
+          title: const Text('Book Details'),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Failed to load book: $err',
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.destructiveRed,
               ),
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 24),
-            Text(
-              book.title,
-              style: AppTextStyles.heading1,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              book.author,
-              style: AppTextStyles.bodyLarge.copyWith(
-                color: AppColors.textMuted,
+          ),
+        ),
+      ),
+      data: (book) {
+        if (book == null) {
+          return Scaffold(
+            backgroundColor: AppColors.background,
+            appBar: AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => context.go('/home'),
               ),
+              title: const Text('Book Details'),
             ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (book.condition.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: AppColors.secondaryBlue,
-                        width: 1,
-                      ),
-                      borderRadius: BorderRadius.circular(AppRadius.badge),
-                    ),
-                    child: Text(
-                      book.condition,
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.secondaryBlue,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: book.isPaid ? AppColors.amber : AppColors.accentGreen,
-                    borderRadius: BorderRadius.circular(AppRadius.badge),
-                  ),
-                  child: Text(
-                    book.isPaid ? '₹${book.price.toStringAsFixed(0)}' : 'Free',
-                    style: AppTextStyles.bodySmall.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondaryBlue.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(AppRadius.badge),
-                  ),
-                  child: Text(
-                    book.status,
-                    style: AppTextStyles.bodySmall.copyWith(
-                      color: AppColors.secondaryBlue,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            const Divider(),
-            const SizedBox(height: 24),
-            if (book.description.isNotEmpty) ...[
-              Text(
-                'Description',
-                style: AppTextStyles.heading3,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                book.description,
+            body: Center(
+              child: Text(
+                'Book not found',
                 style: AppTextStyles.bodyMedium.copyWith(
                   color: AppColors.textMuted,
                 ),
               ),
-              const SizedBox(height: 24),
-            ],
-            const SizedBox(height: 32),
-            if (book.isPaid)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    context.push('/payment', extra: book);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryBlue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.badge),
+            ),
+          );
+        }
+
+        final isOwner = authUser?.uid == book.ownerId;
+
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => context.go('/home'),
+            ),
+            title: const Text('Book Details'),
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 200,
+                    height: 280,
+                    decoration: BoxDecoration(
+                      color: AppColors.mutedBg,
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                  ),
-                  child: Text(
-                    'Buy ₹${book.price.toStringAsFixed(0)}',
-                    style: AppTextStyles.bodyLarge.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                    child: const Center(
+                      child: Text(
+                        '📚',
+                        style: TextStyle(fontSize: 100),
+                      ),
                     ),
                   ),
                 ),
-              )
-            else
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isRequesting
-                      ? null
-                      : () async {
-                          setState(() => _isRequesting = true);
-                          try {
-                            final currentUser = ref.read(authStateProvider).value;
-                            if (currentUser == null) {
-                              if (mounted) setState(() => _isRequesting = false);
-                              return;
-                            }
-                            final chatService = ref.read(chatServiceProvider);
-                            await chatService.createOrGetChat(
-                              bookId: book.id,
-                              ownerId: book.ownerId,
-                              requesterId: currentUser.uid,
-                              bookTitle: book.title,
-                            );
-                            final bookService = ref.read(bookServiceProvider);
-                            await bookService.setBookRequested(book.id, currentUser.uid);
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Request sent successfully!'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                            if (!mounted) return;
-                            context.pop();
-                          } catch (e) {
-                            if (mounted) {
-                              setState(() => _isRequesting = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Failed to request: $e'),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            }
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryBlue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.badge),
-                    ),
+                const SizedBox(height: 24),
+                Text(
+                  book.title,
+                  style: AppTextStyles.heading1,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  book.author,
+                  style: AppTextStyles.bodyLarge.copyWith(
+                    color: AppColors.textMuted,
                   ),
-                  child: _isRequesting
-                      ? const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (book.condition.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: AppColors.secondaryBlue,
+                            width: 1,
                           ),
-                        )
-                      : Text(
-                          'Request Book',
-                          style: AppTextStyles.bodyLarge.copyWith(
-                            color: Colors.white,
+                          borderRadius: BorderRadius.circular(AppRadius.badge),
+                        ),
+                        child: Text(
+                          book.condition,
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.secondaryBlue,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                      ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color:
+                            book.isPaid ? AppColors.amber : AppColors.accentGreen,
+                        borderRadius: BorderRadius.circular(AppRadius.badge),
+                      ),
+                      child: Text(
+                        book.isPaid ? '₹${book.price.toStringAsFixed(0)}' : 'Free',
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.secondaryBlue.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(AppRadius.badge),
+                      ),
+                      child: Text(
+                        book.status,
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.secondaryBlue,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-          ],
-        ),
-      ),
+                const SizedBox(height: 24),
+                const Divider(),
+                const SizedBox(height: 24),
+                if (book.description.isNotEmpty) ...[
+                  Text(
+                    'Description',
+                    style: AppTextStyles.heading3,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    book.description,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+                const SizedBox(height: 32),
+                if (book.isPaid)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: (_isRequesting ||
+                              isOwner ||
+                              (authUser?.uid != null &&
+                                  authUser?.uid == book.requestedBy))
+                          ? null
+                          : () async {
+                              setState(() => _isRequesting = true);
+                              try {
+                                final currentUser =
+                                    ref.read(authStateProvider).value;
+                                if (currentUser == null) return;
+
+                                // Demo payment popup; then we still create a "requested"
+                                // book so the donor follows the same accept flow as free books.
+                                await showDialog<void>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text(
+                                      'Payment Successful (Demo Mode)',
+                                    ),
+                                    content: const Text(
+                                      'Your payment is simulated.\n\n'
+                                      'Next, the donor will receive your request and can accept it, then generate the QR code for handover.',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx),
+                                        child: const Text('OK'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (!mounted) return;
+                                final chatService =
+                                    ref.read(chatServiceProvider);
+
+                                final reqName = () {
+                                  final dn = currentUser.displayName?.trim();
+                                  if (dn != null && dn.isNotEmpty) return dn;
+                                  final em = currentUser.email?.trim();
+                                  if (em != null && em.contains('@')) {
+                                    return em.split('@').first;
+                                  }
+                                  return null;
+                                }();
+
+                                await chatService.createOrGetChat(
+                                  bookId: book.id,
+                                  ownerId: book.ownerId,
+                                  requesterId: currentUser.uid,
+                                  bookTitle: book.title,
+                                  ownerDisplayName:
+                                      book.ownerDisplayName?.trim().isNotEmpty ==
+                                              true
+                                          ? book.ownerDisplayName
+                                          : null,
+                                  requesterDisplayName: reqName,
+                                );
+
+                                final bookService =
+                                    ref.read(bookServiceProvider);
+                                await bookService.setBookRequested(
+                                  book.id,
+                                  currentUser.uid,
+                                );
+
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Request sent successfully! Donor can accept it.',
+                                    ),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                                context.pop();
+                              } catch (e) {
+                                if (mounted) {
+                                  setState(() => _isRequesting = false);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Failed to buy: $e'),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryBlue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.badge),
+                        ),
+                      ),
+                      child: Text(
+                        'Buy ₹${book.price.toStringAsFixed(0)}',
+                        style: AppTextStyles.bodyLarge.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: (_isRequesting || isOwner)
+                          ? null
+                          : () async {
+                              setState(() => _isRequesting = true);
+                              try {
+                                final currentUser =
+                                    ref.read(authStateProvider).value;
+                                if (currentUser == null) {
+                                  if (mounted) {
+                                    setState(() => _isRequesting = false);
+                                  }
+                                  return;
+                                }
+                                final chatService = ref.read(chatServiceProvider);
+                                final reqName = () {
+                                  final dn = currentUser.displayName?.trim();
+                                  if (dn != null && dn.isNotEmpty) return dn;
+                                  final em = currentUser.email?.trim();
+                                  if (em != null && em.contains('@')) {
+                                    return em.split('@').first;
+                                  }
+                                  return null;
+                                }();
+                                await chatService.createOrGetChat(
+                                  bookId: book.id,
+                                  ownerId: book.ownerId,
+                                  requesterId: currentUser.uid,
+                                  bookTitle: book.title,
+                                  ownerDisplayName: book.ownerDisplayName?.trim().isNotEmpty == true
+                                      ? book.ownerDisplayName
+                                      : null,
+                                  requesterDisplayName: reqName,
+                                );
+                                final bookService = ref.read(bookServiceProvider);
+                                await bookService.setBookRequested(
+                                    book.id, currentUser.uid);
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Request sent successfully!'),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                                if (!mounted) return;
+                                context.pop();
+                              } catch (e) {
+                                if (mounted) {
+                                  setState(() => _isRequesting = false);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Failed to request: $e'),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryBlue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.badge),
+                        ),
+                      ),
+                      child: _isRequesting
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Text(
+                              'Request Book',
+                              style: AppTextStyles.bodyLarge.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

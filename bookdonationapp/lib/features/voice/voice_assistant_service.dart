@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
@@ -10,6 +11,7 @@ class VoiceAssistantService {
   bool _isEnabled = true;
   bool _voiceFeedbackEnabled = true;
   bool _isInitialized = false;
+  Future<void>? _initializing;
 
   bool get isListening => _isListening;
   bool get isEnabled => _isEnabled;
@@ -17,23 +19,33 @@ class VoiceAssistantService {
 
   Future<void> initialize() async {
     if (_isInitialized) return;
-    
-    // Initialize TTS
-    await _tts.setLanguage("en-US");
-    await _tts.setSpeechRate(0.5);
-    await _tts.setVolume(1.0);
-    await _tts.setPitch(1.0);
-    
-    // Request permissions
-    await Permission.microphone.request();
-    await Permission.speech.request();
-    
-    _isInitialized = true;
+
+    // Prevent multiple concurrent initializations.
+    if (_initializing != null) {
+      await _initializing;
+      return;
+    }
+
+    _initializing = () async {
+      // Initialize TTS
+      await _tts.setLanguage("en-US");
+      await _tts.setSpeechRate(0.5);
+      await _tts.setVolume(1.0);
+      await _tts.setPitch(1.0);
+      _isInitialized = true;
+    }();
+
+    await _initializing;
   }
 
   Future<void> speak(String text) async {
     if (!_voiceFeedbackEnabled) return;
-    await _tts.speak(text);
+    final t = text.trim();
+    if (t.isEmpty) return;
+
+    // Ensure TTS is initialized before speaking.
+    await initialize();
+    await _tts.speak(t);
   }
 
   Future<void> stopSpeaking() async {
@@ -44,7 +56,23 @@ class VoiceAssistantService {
     required Function(String) onResult,
     Function()? onError,
   }) async {
-    if (!_isEnabled || _isListening) return false;
+    if (!_isEnabled) return false;
+
+    // If we got stuck in a previous session, clear it before starting again.
+    if (_isListening) {
+      await stopListening();
+    }
+
+    // STT + TTS must be ready (startListening calls speak("Listening...")).
+    await initialize();
+
+    // Request permissions best-effort (needed for STT).
+    try {
+      await Permission.microphone.request();
+      await Permission.speech.request();
+    } catch (_) {
+      // Ignore; STT initialize will tell us availability.
+    }
 
     bool available = await _speech.initialize(
       onError: (error) {
@@ -59,6 +87,9 @@ class VoiceAssistantService {
     );
 
     if (!available) {
+      _isListening = false;
+      // Ensure the UI gets feedback even if voice feedback is disabled.
+      onError?.call();
       await speak("Speech recognition is not available");
       return false;
     }
@@ -71,6 +102,16 @@ class VoiceAssistantService {
         if (result.finalResult) {
           _isListening = false;
           final recognizedText = result.recognizedWords.toLowerCase().trim();
+
+          // Stop the recognizer before the UI reacts to reduce race conditions.
+          unawaited(() async {
+            try {
+              await _speech.stop();
+            } catch (_) {
+              // Ignore stop failures.
+            }
+          }());
+
           if (recognizedText.isNotEmpty) {
             onResult(recognizedText);
           }
@@ -88,7 +129,11 @@ class VoiceAssistantService {
 
   Future<void> stopListening() async {
     if (_isListening) {
-      await _speech.stop();
+      try {
+        await _speech.stop();
+      } catch (_) {
+        // Ignore failures so voice UI doesn't get stuck.
+      }
       _isListening = false;
     }
   }
@@ -161,8 +206,12 @@ class VoiceAssistantService {
   }
 
   void dispose() {
-    _tts.stop();
-    _speech.stop();
+    try {
+      _tts.stop();
+    } catch (_) {}
+    try {
+      _speech.stop();
+    } catch (_) {}
   }
 }
 

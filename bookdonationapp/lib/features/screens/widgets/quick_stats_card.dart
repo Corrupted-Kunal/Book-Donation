@@ -28,8 +28,12 @@ class QuickStatsCard extends StatelessWidget {
           const Divider(),
           _buildStatRow(
             'Success Rate',
-            '${user.successRate}%',
-            valueColor: AppColors.accentGreen,
+            user.totalDonations == 0
+                ? '—'
+                : '${user.successRate}%',
+            valueColor: user.totalDonations == 0
+                ? null
+                : AppColors.accentGreen,
           ),
           const Divider(),
           _buildStatRow('Response Time', user.responseTime),

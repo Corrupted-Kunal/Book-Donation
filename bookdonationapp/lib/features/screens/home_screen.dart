@@ -5,12 +5,13 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/responsive.dart';
 import '../auth/auth_provider.dart';
+import '../auth/user_display_name_provider.dart';
+import '../books/book_model.dart';
+import '../books/book_provider.dart';
+import '../rewards/rewards_provider.dart';
 import 'widgets/stat_card.dart';
-import 'widgets/donation_card.dart';
-import 'widgets/request_card.dart';
 import 'widgets/quick_action_card.dart';
 import 'widgets/impact_card.dart';
-import 'widgets/status_badge.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -22,60 +23,38 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _notificationPressed = false;
 
-  // Mock data
-  final List<Map<String, dynamic>> _recentDonations = [
-    {
-      'title': 'Introduction to Algorithms',
-      'author': 'Thomas H. Cormen',
-      'status': DonationStatus.completed,
-      'emoji': '📖',
-    },
-    {
-      'title': 'Clean Code',
-      'author': 'Robert C. Martin',
-      'status': DonationStatus.pending,
-      'emoji': '📘',
-    },
-    {
-      'title': 'The Pragmatic Programmer',
-      'author': 'Andrew Hunt',
-      'status': DonationStatus.inTransit,
-      'emoji': '📗',
-    },
-  ];
-
-  final List<Map<String, dynamic>> _nearbyRequests = [
-    {
-      'title': 'Data Structures',
-      'distance': '2.5 km',
-      'requestor': 'Arinjay',
-    },
-    {
-      'title': 'DBMS',
-      'distance': '3.8 km',
-      'requestor': 'Yash Pawar',
-    },
-    {
-      'title': 'OS Concepts',
-      'distance': '5.2 km',
-      'requestor': 'Priya S',
-    },
-  ];
-
-  String _getUserName() {
-    final user = ref.read(authStateProvider).value;
-    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-      return user.displayName!;
-    }
-    if (user?.email != null && user!.email!.isNotEmpty) {
-      return user.email!.split('@')[0];
-    }
-    return 'Guest';
-  }
-
   @override
   Widget build(BuildContext context) {
-    final userName = _getUserName();
+    final authUser = ref.watch(authStateProvider).value;
+    final userName = ref.watch(userDisplayNameProvider).maybeWhen(
+      data: (name) => name,
+      orElse: () => 'Guest',
+    );
+    final booksAsync = ref.watch(booksStreamProvider);
+    final myBooksAsync = ref.watch(myBooksProvider);
+    final donationCount = ref.watch(donationCountProvider);
+
+    // Compute lightweight stats for the header based on live Firestore data.
+    var booksDonated = donationCount;
+    var requestsFulfilled = 0;
+    var treesSaved = 0;
+    booksAsync.maybeWhen(
+      data: (books) {
+        if (authUser == null) {
+          booksDonated = 0;
+          requestsFulfilled = 0;
+          treesSaved = 0;
+          return;
+        }
+
+        final uid = authUser.uid;
+        final mine = books.where((b) => b.ownerId == uid).toList();
+        booksDonated = mine.length;
+        requestsFulfilled = mine.where((b) => b.status == 'sold').length;
+        treesSaved = requestsFulfilled;
+      },
+      orElse: () {},
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -83,7 +62,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: Column(
           children: [
             // Gradient Header
-            _buildHeader(userName),
+            _buildHeader(
+              userName,
+              booksDonated: booksDonated,
+              requestsFulfilled: requestsFulfilled,
+              treesSaved: treesSaved,
+            ),
             // Scrollable Content
             Expanded(
               child: SingleChildScrollView(
@@ -97,16 +81,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Recent Donations Section
-                      _buildRecentDonationsSection(),
+                      _buildRecentDonationsSection(booksAsync),
                       SizedBox(height: Responsive.spacing(context, mobile: 24)),
-                      // Nearby Requests Section
-                      _buildNearbyRequestsSection(),
+                      // My Donations Section
+                      _buildMyDonationsSection(myBooksAsync),
                       SizedBox(height: Responsive.spacing(context, mobile: 24)),
                       // Quick Action Cards
                       _buildQuickActionsSection(),
                       SizedBox(height: Responsive.spacing(context, mobile: 24)),
                       // Impact Card
-                      _buildImpactSection(),
+                      _buildImpactSection(treesSaved),
                       SizedBox(height: Responsive.spacing(context, mobile: 24)),
                     ],
                   ),
@@ -119,7 +103,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildHeader(String userName) {
+  Widget _buildHeader(
+    String userName, {
+    required int booksDonated,
+    required int requestsFulfilled,
+    required int treesSaved,
+  }) {
     return Container(
       decoration: BoxDecoration(
         gradient: AppColors.primaryGradient,
@@ -263,7 +252,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             Expanded(
                               child: StatCard(
                                 label: 'Books Donated',
-                                value: '24',
+                                value: booksDonated.toString(),
                                 icon: Icons.book,
                                 iconColor: AppColors.primaryBlue,
                               ),
@@ -272,7 +261,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             Expanded(
                               child: StatCard(
                                 label: 'Requests Fulfilled',
-                                value: '12',
+                                value: requestsFulfilled.toString(),
                                 icon: Icons.favorite,
                                 iconColor: AppColors.secondaryBlue,
                               ),
@@ -281,7 +270,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             Expanded(
                               child: StatCard(
                                 label: 'Trees Saved',
-                                value: '8',
+                                value: treesSaved.toString(),
                                 icon: Icons.eco,
                                 iconColor: AppColors.accentGreen,
                               ),
@@ -295,7 +284,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             Expanded(
                               child: StatCard(
                                 label: 'Books Donated',
-                                value: '24',
+                                value: booksDonated.toString(),
                                 icon: Icons.book,
                                 iconColor: AppColors.primaryBlue,
                               ),
@@ -304,7 +293,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             Expanded(
                               child: StatCard(
                                 label: 'Requests Fulfilled',
-                                value: '12',
+                                value: requestsFulfilled.toString(),
                                 icon: Icons.favorite,
                                 iconColor: AppColors.secondaryBlue,
                               ),
@@ -313,7 +302,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             Expanded(
                               child: StatCard(
                                 label: 'Trees Saved',
-                                value: '8',
+                                value: treesSaved.toString(),
                                 icon: Icons.eco,
                                 iconColor: AppColors.accentGreen,
                               ),
@@ -332,68 +321,222 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildRecentDonationsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Recent Donations',
-          style: AppTextStyles.heading3.copyWith(
-            fontSize: AppTextStyles.heading3.fontSize! * Responsive.fontSizeMultiplier(context),
+  Widget _buildRecentDonationsSection(AsyncValue<List<Book>> booksAsync) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(AppRadius.normalCard),
+        boxShadow: AppShadows.sharpBase,
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Recent Donations',
+            style: AppTextStyles.heading3.copyWith(
+              fontSize: AppTextStyles.heading3.fontSize! *
+                  Responsive.fontSizeMultiplier(context),
+            ),
           ),
-        ),
-        SizedBox(height: Responsive.spacing(context, mobile: 12)),
-        SizedBox(
-          height: Responsive.isMobile(context) ? 240 : 280,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            itemCount: _recentDonations.length,
-            itemBuilder: (context, index) {
-              final donation = _recentDonations[index];
-              return Padding(
-                padding: EdgeInsets.only(
-                  right: Responsive.spacing(context, mobile: 12),
+          SizedBox(height: Responsive.spacing(context, mobile: 12)),
+          booksAsync.when(
+          loading: () => SizedBox(
+            height: Responsive.isMobile(context) ? 160 : 180,
+            child: const Center(
+              child: CircularProgressIndicator(),
+            ),
+          ),
+          error: (error, _) => SizedBox(
+            height: Responsive.isMobile(context) ? 160 : 180,
+            child: Center(
+              child: Text(
+                'Failed to load recent donations.',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textMuted,
                 ),
-                child: DonationCard(
-                  title: donation['title'] as String,
-                  author: donation['author'] as String,
-                  status: donation['status'] as DonationStatus,
-                  emoji: donation['emoji'] as String,
+              ),
+            ),
+          ),
+          data: (books) {
+            final recent = books.take(5).toList();
+            if (recent.isEmpty) {
+              return SizedBox(
+                height: Responsive.isMobile(context) ? 120 : 140,
+                child: Center(
+                  child: Text(
+                    'No recent donations yet.',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
                 ),
               );
-            },
-          ),
+            }
+
+            return SizedBox(
+              height: Responsive.isMobile(context) ? 220 : 260,
+              child: Scrollbar(
+                thumbVisibility: true,
+                child: ListView.separated(
+                  itemCount: recent.length,
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1, color: AppColors.mutedBg),
+                  itemBuilder: (context, index) {
+                    final book = recent[index];
+                    final priceText =
+                        book.isPaid ? '₹${_formatPrice(book.price)}' : 'Free';
+
+                    return ListTile(
+                      tileColor: Colors.transparent,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 4),
+                      onTap: () => _showBookDetailDialog(book),
+                      title: Text(
+                        book.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.bodyLarge.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${book.author}\nDonor: ${book.donorLabel}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.bodySmall,
+                      ),
+                      isThreeLine: true,
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            priceText,
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatDonationStatus(book.status),
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            );
+          },
         ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildNearbyRequestsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Nearby Requests',
-          style: AppTextStyles.heading3.copyWith(
-            fontSize: AppTextStyles.heading3.fontSize! * Responsive.fontSizeMultiplier(context),
+  Widget _buildMyDonationsSection(AsyncValue<List<Book>> myBooksAsync) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(AppRadius.normalCard),
+        boxShadow: AppShadows.sharpBase,
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'My Donations',
+            style: AppTextStyles.heading3.copyWith(
+              fontSize: AppTextStyles.heading3.fontSize! *
+                  Responsive.fontSizeMultiplier(context),
+            ),
           ),
+          SizedBox(height: Responsive.spacing(context, mobile: 12)),
+          myBooksAsync.when(
+          loading: () => SizedBox(
+            height: Responsive.isMobile(context) ? 140 : 160,
+            child: const Center(
+              child: CircularProgressIndicator(),
+            ),
+          ),
+          error: (error, _) => SizedBox(
+            height: Responsive.isMobile(context) ? 140 : 160,
+            child: Center(
+              child: Text(
+                'Failed to load your donations.',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ),
+          ),
+          data: (books) {
+            if (books.isEmpty) {
+              return SizedBox(
+                height: Responsive.isMobile(context) ? 120 : 140,
+                child: Center(
+                  child: Text(
+                    'No donations found.',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            return SizedBox(
+              height: Responsive.isMobile(context) ? 220 : 260,
+              child: Scrollbar(
+                thumbVisibility: true,
+                child: ListView.separated(
+                  itemCount: books.length,
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1, color: AppColors.mutedBg),
+                  itemBuilder: (context, index) {
+                    final book = books[index];
+                    final priceText =
+                        book.isPaid ? '₹${_formatPrice(book.price)}' : 'Free';
+                    return ListTile(
+                      tileColor: Colors.transparent,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 4),
+                      onTap: () => _showBookDetailDialog(book),
+                      title: Text(
+                        book.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.bodyLarge.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Author: ${book.author}\nStatus: ${_formatDonationStatus(book.status)}',
+                        style: AppTextStyles.bodySmall,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      isThreeLine: true,
+                      trailing: Text(
+                        priceText,
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            );
+          },
         ),
-        SizedBox(height: Responsive.spacing(context, mobile: 12)),
-        ..._nearbyRequests.map((request) => Padding(
-              padding: EdgeInsets.only(
-                bottom: Responsive.spacing(context, mobile: 12),
-              ),
-              child: RequestCard(
-                title: request['title'] as String,
-                distance: request['distance'] as String,
-                requestorName: request['requestor'] as String,
-                onDonate: () {
-                  context.push('/requests');
-                },
-              ),
-            )),
-      ],
+        ],
+      ),
     );
   }
 
@@ -465,12 +608,115 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildImpactSection() {
+  Widget _buildImpactSection(int treesSaved) {
     return ImpactCard(
-      treesSaved: 8,
+      treesSaved: treesSaved,
       onTap: () {
         context.push('/eco-tracker');
       },
     );
+  }
+
+  void _showBookDetailDialog(Book book) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          backgroundColor: AppColors.cardBg.withOpacity(0.98),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    book.title,
+                    style: AppTextStyles.heading3,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    book.author,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _detailRow('Donor', book.donorLabel),
+                  _detailRow('Requested By', book.requestedBy ?? '-'),
+                  _detailRow('Status', _formatDonationStatus(book.status)),
+                  _detailRow(
+                    'Created At',
+                    book.createdAt.toString(),
+                  ),
+                  _detailRow(
+                    'Completed At',
+                    book.completedAt?.toString() ?? '-',
+                  ),
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              '$label:',
+              style: AppTextStyles.bodySmall.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: AppTextStyles.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDonationStatus(String status) {
+    switch (status) {
+      case 'available':
+        return 'available';
+      case 'requested':
+        return 'requested';
+      case 'accepted':
+        return 'accepted';
+      case 'sold':
+        return 'sold';
+      default:
+        return status;
+    }
+  }
+
+  String _formatPrice(double price) {
+    // Keep UI clean for whole-number prices.
+    final isWhole = price == price.roundToDouble();
+    return isWhole ? price.toStringAsFixed(0) : price.toStringAsFixed(2);
   }
 }

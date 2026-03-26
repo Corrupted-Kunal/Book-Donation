@@ -33,7 +33,7 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
       author: book.author,
       category: book.condition.isNotEmpty ? book.condition : book.status,
       condition: book.condition.isNotEmpty ? book.condition : '—',
-      donor: '—',
+      donor: book.donorLabel,
       city: '—',
       distance: '—',
       rating: 0,
@@ -262,7 +262,7 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
           child: BookRequestCard(
             book: _bookToRequestBook(book),
             onTap: () {
-              context.push('/book-detail/${book.id}', extra: book);
+              context.push('/book-detail/${book.id}');
             },
           ),
         );

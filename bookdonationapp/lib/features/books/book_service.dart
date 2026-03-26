@@ -23,6 +23,7 @@ class BookService {
     required String title,
     required String author,
     required String ownerId,
+    String? ownerDisplayName,
     required String condition,
     required String description,
     required double price,
@@ -34,6 +35,8 @@ class BookService {
       'condition': condition,
       'description': description,
       'ownerId': ownerId,
+      if (ownerDisplayName != null && ownerDisplayName.trim().isNotEmpty)
+        'ownerDisplayName': ownerDisplayName.trim(),
       'price': price,
       'isPaid': isPaid,
       'status': 'available',
@@ -55,9 +58,14 @@ class BookService {
     });
   }
 
-  Future<void> acceptRequest(String bookId, String verificationToken) async {
+  Future<void> acceptRequest(
+    String bookId,
+    String requestedByUid,
+    String verificationToken,
+  ) async {
     await _books.doc(bookId).update({
       'status': 'accepted',
+      'requestedBy': requestedByUid,
       'verificationToken': verificationToken,
     });
   }

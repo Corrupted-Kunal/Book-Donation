@@ -119,10 +119,19 @@ class _DonateScreenState extends ConsumerState<DonateScreen> {
       final price = _isSelling
           ? (double.tryParse(_priceController.text.trim()) ?? 0.0)
           : 0.0;
+      final ownerDisplayName = () {
+        final dn = user.displayName?.trim();
+        if (dn != null && dn.isNotEmpty) return dn;
+        final em = user.email?.trim();
+        if (em != null && em.contains('@')) return em.split('@').first;
+        return null;
+      }();
+
       await bookService.addBook(
         title: title,
         author: author,
         ownerId: user.uid,
+        ownerDisplayName: ownerDisplayName,
         condition: _selectedCondition,
         description: _descriptionController.text.trim(),
         price: price,
@@ -193,8 +202,20 @@ class _DonateScreenState extends ConsumerState<DonateScreen> {
   Future<void> _acceptRequest(String bookId) async {
     try {
       final bookService = ref.read(bookServiceProvider);
+      final book = await bookService.getBookById(bookId);
+      final requesterUid = book?.requestedBy;
+      if (requesterUid == null || requesterUid.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Requester missing for this book request.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
       final token = const Uuid().v4();
-      await bookService.acceptRequest(bookId, token);
+      await bookService.acceptRequest(bookId, requesterUid, token);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -307,7 +328,8 @@ class _DonateScreenState extends ConsumerState<DonateScreen> {
                                         timeAgo: _getTimeAgo(book.createdAt),
                                         emoji: '📚',
                                       ),
-                                      if (book.status == 'requested') ...[
+                                      if (book.status == 'requested' &&
+                                          book.requestedBy != authUser.uid) ...[
                                         const SizedBox(height: 8),
                                         SizedBox(
                                           width: double.infinity,

@@ -1,12 +1,60 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../rewards/rewards_provider.dart';
 
-class GamificationCard extends StatelessWidget {
+class GamificationCard extends ConsumerWidget {
   const GamificationCard({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    const pointsPerDonation = 50;
+    final donations = ref.watch(donationCountProvider);
+
+    // Badge thresholds in donations.
+    final levels = [1, 5, 10, 25, 50];
+    int? nextLevel;
+    for (final level in levels) {
+      if (donations < level) {
+        nextLevel = level;
+        break;
+      }
+    }
+
+    String title;
+    String subtitle;
+
+    if (nextLevel == null) {
+      title = 'You’re an Eco Hero 🌍';
+      subtitle = 'You’ve reached the highest donation level. Keep inspiring others!';
+    } else {
+      final remainingDonations = (nextLevel - donations).clamp(1, 9999);
+      final remainingPoints = remainingDonations * pointsPerDonation;
+
+      String nextLabel;
+      switch (nextLevel) {
+        case 1:
+          nextLabel = 'Beginner 📘';
+          break;
+        case 5:
+          nextLabel = 'Contributor 🧑‍💼';
+          break;
+        case 10:
+          nextLabel = 'Champion 🏆';
+          break;
+        case 25:
+          nextLabel = 'Legend 🔥';
+          break;
+        case 50:
+        default:
+          nextLabel = 'Eco Hero 🌍';
+      }
+
+      title = 'Become a $nextLabel';
+      subtitle = 'Just $remainingPoints more points to reach the next level!';
+    }
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -43,14 +91,14 @@ class GamificationCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Become a Platinum Donor',
+                  title,
                   style: AppTextStyles.bodyLarge.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Just 250 more points to reach the next level!',
+                  subtitle,
                   style: AppTextStyles.bodySmall.copyWith(
                     color: AppColors.textMuted,
                     fontStyle: FontStyle.italic,

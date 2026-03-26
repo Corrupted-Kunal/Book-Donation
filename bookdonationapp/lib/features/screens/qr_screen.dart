@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -123,6 +124,10 @@ class _QRScreenState extends ConsumerState<QRScreen> {
             .where((b) =>
                 b.ownerId == currentUser.uid && b.status == 'accepted')
             .toList();
+        // Self-request can lead to QR payload mismatches; exclude those.
+        acceptedBooks.removeWhere(
+          (b) => (b.requestedBy?.isNotEmpty == true && b.requestedBy == currentUser.uid),
+        );
 
         if (acceptedBooks.isEmpty) {
           return Center(
@@ -162,10 +167,27 @@ class _QRScreenState extends ConsumerState<QRScreen> {
           });
         }
 
+        final buyerUid = selected.requestedBy ?? '';
+        final verificationToken = selected.verificationToken ?? '';
+        if (buyerUid.isEmpty || verificationToken.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'QR not ready yet. Waiting for the buyer to complete payment.',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textMuted,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        }
+
         final qrPayload = jsonEncode({
           'bookId': selected.id,
-          'buyerUid': selected.requestedBy ?? '',
-          'verificationToken': selected.verificationToken ?? '',
+          'buyerUid': buyerUid,
+          'verificationToken': verificationToken,
         });
 
         return SingleChildScrollView(
@@ -325,12 +347,20 @@ class _QRScreenState extends ConsumerState<QRScreen> {
 
     try {
       final bookService = ref.read(bookServiceProvider);
-      final book = await bookService.getBookById(bookId);
 
-      if (book == null) {
+      // Use a snapshot-based lookup so the validation is always based on the latest state.
+      final bookSnap = await FirebaseFirestore.instance
+          .collection('books')
+          .doc(bookId)
+          .snapshots()
+          .first;
+
+      if (!bookSnap.exists) {
         if (mounted) _showErrorDialog('Book not found.');
         return;
       }
+
+      final book = Book.fromDoc(bookSnap);
       if (book.status != 'accepted') {
         if (mounted) _showErrorDialog('This book is not in accepted state.');
         return;

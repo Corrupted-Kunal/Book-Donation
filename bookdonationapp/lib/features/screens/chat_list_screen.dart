@@ -96,16 +96,21 @@ class ChatListScreen extends ConsumerWidget {
             itemCount: chats.length,
             itemBuilder: (context, index) {
               final chat = chats[index];
+              final otherLabel = chat.otherParticipantLabel(authUser.uid);
+
               return ListTile(
                 leading: CircleAvatar(
                   backgroundColor: AppColors.primaryBlue.withOpacity(0.2),
-                  child: const Icon(
-                    Icons.book,
-                    color: AppColors.primaryBlue,
+                  child: Text(
+                    (otherLabel.isNotEmpty ? otherLabel[0] : '?').toUpperCase(),
+                    style: const TextStyle(
+                      color: AppColors.primaryBlue,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 title: Text(
-                  chat.bookTitle,
+                  otherLabel,
                   style: AppTextStyles.bodyLarge.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -113,9 +118,7 @@ class ChatListScreen extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 subtitle: Text(
-                  chat.lastMessage.isEmpty
-                      ? 'No messages yet'
-                      : chat.lastMessage,
+                  chat.bookTitle,
                   style: AppTextStyles.bodySmall.copyWith(
                     color: AppColors.textMuted,
                   ),
@@ -129,7 +132,7 @@ class ChatListScreen extends ConsumerWidget {
                   ),
                 ),
                 onTap: () {
-                  context.push('/chat/${chat.id}', extra: chat);
+                  context.push('/chat/${chat.id}');
                 },
               );
             },

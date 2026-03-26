@@ -2,6 +2,19 @@
 
 A new Flutter project.
 
+## Firestore — `users` profiles
+
+The app merges public fields into `users/{uid}` on sign-in (see `UserFirestoreService`).
+Add rules so only the signed-in user can write their own document, for example:
+
+```text
+match /users/{userId} {
+  allow read: if request.auth != null;
+  allow create, update: if request.auth != null && request.auth.uid == userId;
+  allow delete: if false;
+}
+```
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/responsive.dart';
 import '../auth/auth_provider.dart';
 import '../auth/user_profile_model.dart';
+import '../rewards/rewards_provider.dart';
 import 'widgets/profile_header.dart';
 import 'widgets/floating_stats_row.dart';
 import 'widgets/menu_card.dart';
@@ -19,8 +21,19 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authUser = ref.watch(authStateProvider).value;
+    final donationCount = ref.watch(donationCountProvider);
+    final requestCount = ref.watch(requestCountProvider);
+    final badge = ref.watch(badgeProvider);
+    final rewardPoints = ref.watch(rewardPointsProvider);
+    final successRate = ref.watch(donationSuccessRateProvider);
 
-    // Mock user data
+    final created = authUser?.metadata.creationTime;
+    final memberSince = created != null
+        ? DateFormat.yMMMM().format(created)
+        : '—';
+
+    final localeTag = Localizations.localeOf(context).toLanguageTag();
+
     final user = UserProfile(
       name: authUser?.displayName ??
           authUser?.email?.split('@')[0] ??
@@ -30,14 +43,14 @@ class ProfileScreen extends ConsumerWidget {
               authUser?.email?.substring(0, 1) ??
               'G')
           .toUpperCase(),
-      badgeText: 'Gold Donor 🏆',
-      totalDonations: 24,
-      totalRequests: 12,
-      rewardPoints: 1250,
-      memberSince: 'January 2025',
-      successRate: 98,
-      responseTime: '~2 hours',
-      language: 'English',
+      badgeText: badge,
+      totalDonations: donationCount,
+      totalRequests: requestCount,
+      rewardPoints: rewardPoints,
+      memberSince: memberSince,
+      successRate: successRate,
+      responseTime: '—',
+      language: localeTag,
     );
 
     return Scaffold(
@@ -59,10 +72,10 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 child: Column(
                   children: [
-                    // Floating Stats Row with Transform - pushed higher
+                    // Floating Stats Row with Transform
                     Transform.translate(
                       offset:
-                          Offset(0, Responsive.isMobile(context) ? -64 : -80),
+                          Offset(0, Responsive.isMobile(context) ? -32 : -40),
                       child: FloatingStatsRow(user: user),
                     ),
                     SizedBox(height: Responsive.spacing(context, mobile: 24)),

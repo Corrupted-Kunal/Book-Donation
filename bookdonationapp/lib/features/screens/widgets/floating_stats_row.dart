@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/theme/app_colors.dart';
 import '../../auth/user_profile_model.dart';
+import '../../rewards/rewards_provider.dart';
 import 'stat_card.dart';
 
-class FloatingStatsRow extends StatelessWidget {
+class FloatingStatsRow extends ConsumerWidget {
   final UserProfile user;
 
   const FloatingStatsRow({
@@ -12,7 +15,9 @@ class FloatingStatsRow extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rewardPoints = ref.watch(rewardPointsProvider);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 0),
       child: Row(
@@ -39,7 +44,7 @@ class FloatingStatsRow extends StatelessWidget {
             child: StatCard(
               icon: Icons.eco,
               iconColor: AppColors.accentGreen,
-              value: _formatPoints(user.rewardPoints),
+              value: _formatPoints(rewardPoints),
               label: 'Reward Points',
             ),
           ),

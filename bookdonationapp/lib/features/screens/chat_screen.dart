@@ -8,12 +8,10 @@ import '../chat/chat_provider.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String chatId;
-  final String? bookTitle;
 
   const ChatScreen({
     super.key,
     required this.chatId,
-    this.bookTitle,
   });
 
   @override
@@ -70,6 +68,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final currentUser = ref.watch(authStateProvider).value;
     final messagesAsync = ref.watch(chatMessagesStreamProvider(widget.chatId));
+    final chatDocAsync = ref.watch(chatByIdStreamProvider(widget.chatId));
 
     if (currentUser == null) {
       return Scaffold(
@@ -85,9 +84,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/chat'),
         ),
-        title: Text(
-          widget.bookTitle ?? 'Chat',
-          style: AppTextStyles.heading2,
+        title: chatDocAsync.when(
+          data: (chat) {
+            if (chat == null) {
+              return Text('Chat', style: AppTextStyles.heading2);
+            }
+            final bookLine =
+                chat.bookTitle.trim().isEmpty ? 'Chat' : chat.bookTitle;
+            final who = chat.otherParticipantLabel(currentUser.uid);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  bookLine,
+                  style: AppTextStyles.heading2.copyWith(fontSize: 18),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  who,
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.textMuted,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            );
+          },
+          loading: () => Text('Chat', style: AppTextStyles.heading2),
+          error: (_, __) => Text('Chat', style: AppTextStyles.heading2),
         ),
         backgroundColor: Colors.white,
         elevation: 0,
@@ -107,21 +135,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                   );
                 }
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+                return Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.background,
+                        AppColors.mutedBg.withOpacity(0.4),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
                   ),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final msg = messages[index];
-                    final isMe = msg.senderId == currentUser.uid;
-                    return _MessageBubble(
-                      text: msg.text,
-                      isMe: isMe,
-                    );
-                  },
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final msg = messages[index];
+                      final isMe = msg.senderId == currentUser.uid;
+                      return _MessageBubble(
+                        text: msg.text,
+                        isMe: isMe,
+                      );
+                    },
+                  ),
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -209,15 +249,20 @@ class _MessageBubble extends StatelessWidget {
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
         decoration: BoxDecoration(
-          color: isMe
-              ? AppColors.primaryBlue
-              : AppColors.mutedBg,
+          color: isMe ? AppColors.primaryBlue : Colors.white,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
             bottomLeft: Radius.circular(isMe ? 16 : 4),
             bottomRight: Radius.circular(isMe ? 4 : 16),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Text(
           text,

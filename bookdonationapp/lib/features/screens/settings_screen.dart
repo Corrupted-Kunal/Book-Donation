@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/theme/app_colors.dart';
 import 'widgets/menu_item_row.dart';
 
@@ -57,7 +58,9 @@ class SettingsScreen extends StatelessWidget {
                     label: 'Notifications',
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Notification settings coming soon')),
+                        const SnackBar(
+                            content:
+                                Text('Notification settings coming soon')),
                       );
                     },
                   ),
