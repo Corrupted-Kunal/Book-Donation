@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../auth/auth_provider.dart';
+import '../../chat/chat_provider.dart';
 
 enum NavItem {
   home('/home'),
@@ -14,12 +17,16 @@ enum NavItem {
   const NavItem(this.path);
 }
 
-class BottomNavBar extends StatelessWidget {
+class BottomNavBar extends ConsumerWidget {
   const BottomNavBar({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final currentLocation = GoRouterState.of(context).matchedLocation;
+    final authUser = ref.watch(authStateProvider).value;
+    final hasUnreadChats = authUser == null
+        ? false
+        : ref.watch(hasUnreadChatsProvider(authUser.uid)).value ?? false;
 
     return Container(
       decoration: BoxDecoration(
@@ -75,6 +82,7 @@ class BottomNavBar extends StatelessWidget {
                 label: 'Chat',
                 item: NavItem.chat,
                 currentLocation: currentLocation,
+                showNotificationDot: hasUnreadChats && currentLocation != '/chat',
               ),
               _buildNavItem(
                 context: context,
@@ -98,6 +106,7 @@ class BottomNavBar extends StatelessWidget {
     required String label,
     required NavItem item,
     required String currentLocation,
+    bool showNotificationDot = false,
   }) {
     final isSelected = currentLocation == item.path;
     return Expanded(
@@ -133,6 +142,12 @@ class BottomNavBar extends StatelessWidget {
                         : AppColors.textMuted,
                     size: 24,
                   ),
+                  if (showNotificationDot)
+                    const Positioned(
+                      right: -1,
+                      top: 6,
+                      child: _NotificationDot(),
+                    ),
                 ],
               ),
               const SizedBox(height: 4),
@@ -148,6 +163,22 @@ class BottomNavBar extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _NotificationDot extends StatelessWidget {
+  const _NotificationDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 9,
+      height: 9,
+      decoration: const BoxDecoration(
+        color: Colors.red,
+        shape: BoxShape.circle,
       ),
     );
   }

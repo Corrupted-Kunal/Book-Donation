@@ -7,8 +7,16 @@ import '../../core/theme/app_text_styles.dart';
 import '../auth/auth_provider.dart';
 import '../chat/chat_provider.dart';
 
-class ChatListScreen extends ConsumerWidget {
+class ChatListScreen extends ConsumerStatefulWidget {
   const ChatListScreen({super.key});
+
+  @override
+  ConsumerState<ChatListScreen> createState() => _ChatListScreenState();
+}
+
+class _ChatListScreenState extends ConsumerState<ChatListScreen> {
+  String? _lastMarkedForUser;
+  bool _isMarkingAllRead = false;
 
   String _formatTimestamp(DateTime? date) {
     if (date == null) return '';
@@ -24,8 +32,21 @@ class ChatListScreen extends ConsumerWidget {
     return DateFormat.yMMMd().format(date);
   }
 
+  Future<void> _markAllReadIfNeeded(String userId) async {
+    if (_isMarkingAllRead || _lastMarkedForUser == userId) return;
+    _isMarkingAllRead = true;
+    _lastMarkedForUser = userId;
+    try {
+      await ref.read(chatServiceProvider).markAllChatsAsRead(userId);
+    } catch (_) {
+      // Ignore failures here; unread indicator will retry next visit.
+    } finally {
+      _isMarkingAllRead = false;
+    }
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final authUser = ref.watch(authStateProvider).value;
 
     if (authUser == null) {
@@ -51,6 +72,10 @@ class ChatListScreen extends ConsumerWidget {
     }
 
     final chatsAsync = ref.watch(userChatsStreamProvider(authUser.uid));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _markAllReadIfNeeded(authUser.uid);
+    });
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -131,7 +156,11 @@ class ChatListScreen extends ConsumerWidget {
                     color: AppColors.textMuted,
                   ),
                 ),
-                onTap: () {
+                onTap: () async {
+                  await ref.read(chatServiceProvider).markChatAsRead(
+                        chatId: chat.id,
+                        userId: authUser.uid,
+                      );
                   context.push('/chat/${chat.id}');
                 },
               );

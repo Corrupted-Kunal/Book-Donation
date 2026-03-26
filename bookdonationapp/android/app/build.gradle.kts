@@ -7,6 +7,13 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+val mapsApiKey = (project.findProperty("MAPS_API_KEY") as String?) ?: ""
+if (mapsApiKey.isBlank() || mapsApiKey == "YOUR_ANDROID_MAPS_API_KEY") {
+    throw GradleException(
+        "MAPS_API_KEY is missing. Add MAPS_API_KEY=your_key to android/local.properties."
+    )
+}
+
 
 android {
     namespace = "com.example.bookdonationapp"
@@ -31,6 +38,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {

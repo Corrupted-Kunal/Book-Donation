@@ -50,7 +50,12 @@ class ChatService {
       'bookTitle': bookTitle,
       'participants': [ownerId, requesterId],
       'lastMessage': '',
+      'lastMessageSenderId': '',
       'lastMessageTime': FieldValue.serverTimestamp(),
+      'readBy': {
+        ownerId: FieldValue.serverTimestamp(),
+        requesterId: FieldValue.serverTimestamp(),
+      },
       if (names.isNotEmpty) 'displayNames': names,
     });
 
@@ -93,16 +98,46 @@ class ChatService {
     required String chatId,
     required String senderId,
     required String text,
+    double? latitude,
+    double? longitude,
   }) async {
+    final hasLocation = latitude != null && longitude != null;
+    final normalizedText = text.trim();
+    final messagePreview = hasLocation
+        ? (normalizedText.isEmpty ? 'Shared location' : normalizedText)
+        : normalizedText;
     final messagesRef = _chats.doc(chatId).collection('messages');
     await messagesRef.add({
       'senderId': senderId,
-      'text': text.trim(),
+      'text': normalizedText,
+      if (hasLocation) 'latitude': latitude,
+      if (hasLocation) 'longitude': longitude,
       'timestamp': FieldValue.serverTimestamp(),
     });
     await _chats.doc(chatId).update({
-      'lastMessage': text.trim(),
+      'lastMessage': messagePreview,
+      'lastMessageSenderId': senderId,
       'lastMessageTime': FieldValue.serverTimestamp(),
+      'readBy.$senderId': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<void> markChatAsRead({
+    required String chatId,
+    required String userId,
+  }) async {
+    await _chats.doc(chatId).update({
+      'readBy.$userId': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> markAllChatsAsRead(String userId) async {
+    final snap = await _chats.where('participants', arrayContains: userId).get();
+    final batch = FirebaseFirestore.instance.batch();
+    final readAt = FieldValue.serverTimestamp();
+    for (final doc in snap.docs) {
+      batch.update(doc.reference, {'readBy.$userId': readAt});
+    }
+    await batch.commit();
   }
 }

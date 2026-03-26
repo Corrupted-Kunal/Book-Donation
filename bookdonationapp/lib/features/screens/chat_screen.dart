@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../ui/pieces/location_attachment_map_view.dart';
+import '../../ui/screens/map_view.dart';
 import '../auth/auth_provider.dart';
 import '../chat/chat_provider.dart';
 
@@ -21,6 +23,21 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
+  String? _markedReadForUser;
+
+  Future<void> _markChatReadIfNeeded(String userId) async {
+    if (_markedReadForUser == userId) return;
+    _markedReadForUser = userId;
+    try {
+      await ref.read(chatServiceProvider).markChatAsRead(
+            chatId: widget.chatId,
+            userId: userId,
+          );
+    } catch (_) {
+      // Ignore transient failures; it will be retried on next open.
+      _markedReadForUser = null;
+    }
+  }
 
   @override
   void dispose() {
@@ -64,6 +81,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  Future<void> _pickAndSendLocation() async {
+    final user = ref.read(authStateProvider).value;
+    if (user == null) return;
+
+    final result = await Navigator.of(context).push<LocationPickResult>(
+      MaterialPageRoute(builder: (_) => const MapViewScreen()),
+    );
+    if (result == null) return;
+
+    try {
+      final chatService = ref.read(chatServiceProvider);
+      await chatService.sendMessage(
+        chatId: widget.chatId,
+        senderId: user.uid,
+        text: result.caption ?? '',
+        latitude: result.latitude,
+        longitude: result.longitude,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send location: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUser = ref.watch(authStateProvider).value;
@@ -76,6 +123,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         body: const Center(child: Text('Sign in to chat')),
       );
     }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _markChatReadIfNeeded(currentUser.uid);
+    });
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -140,7 +192,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     gradient: LinearGradient(
                       colors: [
                         AppColors.background,
-                        AppColors.mutedBg.withOpacity(0.4),
+                        AppColors.mutedBg.withValues(alpha: 0.4),
                       ],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
@@ -159,6 +211,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       return _MessageBubble(
                         text: msg.text,
                         isMe: isMe,
+                        latitude: msg.latitude,
+                        longitude: msg.longitude,
                       );
                     },
                   ),
@@ -185,6 +239,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: SafeArea(
               child: Row(
                 children: [
+                  IconButton(
+                    tooltip: 'Share current location',
+                    onPressed: _pickAndSendLocation,
+                    icon: const Icon(Icons.location_on),
+                    color: AppColors.primaryBlue,
+                  ),
                   Expanded(
                     child: TextField(
                       controller: _textController,
@@ -232,19 +292,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 class _MessageBubble extends StatelessWidget {
   final String text;
   final bool isMe;
+  final double? latitude;
+  final double? longitude;
 
   const _MessageBubble({
     required this.text,
     required this.isMe,
+    this.latitude,
+    this.longitude,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasLocation = latitude != null && longitude != null;
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: hasLocation
+            ? const EdgeInsets.all(8)
+            : const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
@@ -258,17 +325,31 @@ class _MessageBubble extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
         ),
-        child: Text(
-          text,
-          style: AppTextStyles.bodyMedium.copyWith(
-            color: isMe ? Colors.white : AppColors.textPrimary,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (hasLocation)
+              LocationAttachmentMapView(
+                latitude: latitude!,
+                longitude: longitude!,
+                height: 140,
+              ),
+            if (text.trim().isNotEmpty) ...[
+              if (hasLocation) const SizedBox(height: 8),
+              Text(
+                text,
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: isMe ? Colors.white : AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
