@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/responsive.dart';
@@ -646,7 +647,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   const SizedBox(height: 12),
                   _detailRow('Donor', book.donorLabel),
-                  _detailRow('Requested By', book.requestedBy ?? '-'),
+                  _buildRequestedByRow(book.requestedBy),
                   _detailRow('Status', _formatDonationStatus(book.status)),
                   _detailRow(
                     'Created At',
@@ -696,6 +697,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildRequestedByRow(String? requestedByUid) {
+    final uid = requestedByUid?.trim();
+    if (uid == null || uid.isEmpty) {
+      return _detailRow('Requested By', '-');
+    }
+
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
+      builder: (context, snapshot) {
+        String displayValue = uid;
+
+        if (snapshot.hasData) {
+          final data = snapshot.data?.data();
+          final name = (data?['displayName'] as String?)?.trim();
+          if (name != null && name.isNotEmpty) {
+            displayValue = name;
+          }
+        }
+
+        return _detailRow('Requested By', displayValue);
+      },
     );
   }
 
