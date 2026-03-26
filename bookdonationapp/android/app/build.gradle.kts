@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -7,7 +9,13 @@ plugins {
     id("com.google.gms.google-services")
 }
 
-val mapsApiKey = (project.findProperty("MAPS_API_KEY") as String?) ?: ""
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { load(it) }
+    }
+}
+val mapsApiKey = localProperties.getProperty("MAPS_API_KEY", "")
 if (mapsApiKey.isBlank() || mapsApiKey == "YOUR_ANDROID_MAPS_API_KEY") {
     throw GradleException(
         "MAPS_API_KEY is missing. Add MAPS_API_KEY=your_key to android/local.properties."
